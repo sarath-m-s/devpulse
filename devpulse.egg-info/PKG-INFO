@@ -1,0 +1,316 @@
+Metadata-Version: 2.4
+Name: devpulse
+Version: 0.1.0
+Summary: A privacy-first CLI developer productivity copilot
+Author: DevPulse Contributors
+License: MIT
+Keywords: developer,productivity,cli,analytics
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: typer[all]>=0.12
+Requires-Dist: rich>=13.7
+Requires-Dist: watchdog>=4.0
+Requires-Dist: tomli>=2.0; python_version < "3.11"
+Requires-Dist: tomli-w>=1.0
+Requires-Dist: httpx>=0.27
+Provides-Extra: claude
+Requires-Dist: anthropic>=0.40; extra == "claude"
+Provides-Extra: openai
+Requires-Dist: openai>=1.50; extra == "openai"
+Provides-Extra: groq
+Requires-Dist: groq>=0.11; extra == "groq"
+Provides-Extra: all
+Requires-Dist: anthropic>=0.40; extra == "all"
+Requires-Dist: openai>=1.50; extra == "all"
+Requires-Dist: groq>=0.11; extra == "all"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+
+# DevPulse
+
+A privacy-first CLI developer productivity copilot that runs entirely locally. DevPulse silently observes your workflow — shell commands, git activity, file edits — and surfaces actionable insights: repeated toil patterns, time-per-project breakdowns, context-switch scores, and auto-generated automation scripts.
+
+**Everything runs locally. LLM analysis is opt-in and provider-agnostic.**
+
+```
+╭─ DevPulse · Thursday, April 23 ──────────────────────────────╮
+│                                                               │
+│  ⏱  Active: 6h 23m    📊 Commands: 147    🔀 Switches: 12   │
+│  🎯 Focus score: 72/100  (▲ 8 from yesterday)                │
+│                                                               │
+├─ Projects ────────────────────────────────────────────────────┤
+│                                                               │
+│  colearn       ████████████████████░░░░  3h 42m  (58%)       │
+│  devpulse      ████████░░░░░░░░░░░░░░░  1h 31m  (24%)       │
+│  dsa-practice  ████░░░░░░░░░░░░░░░░░░░  0h 48m  (13%)       │
+│  other         ██░░░░░░░░░░░░░░░░░░░░░  0h 22m  ( 5%)       │
+│                                                               │
+├─ Toil detected ───────────────────────────────────────────────┤
+│                                                               │
+│  🔄 docker compose down → up -d           ×8 today (×23 wk)  │
+│  🔄 git stash → checkout → pull → pop     ×3 today (×11 wk)  │
+│     Run: devpulse suggest 1  to auto-fix                      │
+│                                                               │
+├─ Deep work blocks ────────────────────────────────────────────┤
+│                                                               │
+│  09:15 - 10:48  colearn  (1h 33m) ████████████████            │
+│  14:00 - 15:22  devpulse (1h 22m) ██████████████              │
+│                                                               │
+╰───────────────────────────────────────────────────────────────╯
+```
+
+---
+
+## Quick install
+
+```bash
+pip install devpulse
+devpulse init
+```
+
+## Setup
+
+### 1. Install shell hooks
+
+**zsh:**
+```bash
+echo 'source "$(devpulse shell-hook --zsh)"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**bash:**
+```bash
+echo 'source "$(devpulse shell-hook --bash)"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 2. Start the background daemon
+
+```bash
+devpulse start
+```
+
+### 3. Check status after a few commands
+
+```bash
+devpulse today
+```
+
+---
+
+## LLM provider setup
+
+DevPulse works fully without an LLM — toil detection, time tracking, and dashboards need no AI. LLM is only used for `devpulse suggest` and `devpulse insights`.
+
+### Free option — Ollama (recommended)
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.1
+devpulse config set llm.provider ollama
+```
+
+### Cheap option — Groq (free tier)
+
+```bash
+# Get API key from console.groq.com
+devpulse config set llm.provider groq
+devpulse config set llm.groq.api_key gsk_xxxxx
+```
+
+### Premium — Claude
+
+```bash
+devpulse config set llm.provider claude
+# Uses ANTHROPIC_API_KEY env var, or:
+devpulse config set llm.claude.api_key sk-ant-xxxxx
+```
+
+### Premium — OpenAI
+
+```bash
+devpulse config set llm.provider openai
+devpulse config set llm.openai.api_key sk-xxxxx
+```
+
+### No LLM at all
+
+```bash
+devpulse config set llm.provider none
+```
+
+### Test all providers
+
+```bash
+devpulse config providers
+# ✅ Ollama     llama3.1              (local, free)
+# ✅ Groq       llama-3.1-70b         (cloud, free tier)
+# ❌ Claude     not configured
+# ❌ OpenAI     not configured
+# Active: ollama
+```
+
+---
+
+## LLM provider comparison
+
+| Provider | Cost per `suggest` | Cost per `insights` | Monthly est. | Privacy |
+|----------|-------------------|---------------------|--------------|---------|
+| Ollama   | $0 (local)        | $0 (local)          | $0           | 🔒 Local |
+| Groq     | ~$0.001           | ~$0.003             | ~$0.12       | Cloud   |
+| Claude   | ~$0.008           | ~$0.02              | ~$0.84       | Cloud   |
+| OpenAI   | ~$0.004           | ~$0.01              | ~$0.42       | Cloud   |
+
+---
+
+## CLI commands
+
+```
+devpulse init                       First-time setup
+devpulse start                      Start background daemon
+devpulse stop                       Stop daemon
+devpulse status                     Show daemon + today stats
+devpulse today                      Today's activity dashboard
+devpulse week                       Weekly summary with trends
+devpulse toil [--days N]            List detected toil patterns
+devpulse suggest [id]               Generate automation for a toil pattern
+devpulse insights [--days N]        LLM-powered productivity insights
+devpulse backfill [--shell auto]    Import shell history as one-time backfill
+devpulse config                     Show current config
+devpulse config set key value       Update a config value
+devpulse config providers           Test all LLM providers
+devpulse projects                   List tracked projects with stats
+devpulse projects add <path>        Track a new project
+devpulse projects remove <name>     Stop tracking a project
+devpulse export [--from] [--to]     Export data as JSON or CSV
+devpulse reset [--keep-config]      Delete all data
+```
+
+### Examples
+
+```bash
+# Check today's activity
+devpulse today
+
+# Find what you're wasting time on
+devpulse toil --days 14
+
+# Generate a shell alias for your top toil pattern
+devpulse suggest 1
+
+# Get weekly AI insights
+devpulse insights
+
+# Export last month's data
+devpulse export --from 2026-04-01 --to 2026-04-30 --format json
+
+# Change LLM provider
+devpulse config set llm.provider groq
+```
+
+---
+
+## Configuration reference
+
+Config file: `~/.devpulse/config.toml`
+
+```toml
+[general]
+data_retention_days = 90       # Auto-delete events older than N days
+toil_threshold = 5             # Min repetitions to flag a pattern
+idle_timeout_minutes = 15      # Gap before assuming you went idle
+poll_interval_seconds = 30     # Git/window polling interval
+
+[projects]
+paths = ["~/work/myproject"]   # Paths to watch (auto-detected from git repos)
+
+[llm]
+provider = "ollama"            # "claude", "openai", "ollama", "groq", "none"
+
+[llm.ollama]
+host = "http://localhost:11434"
+model = "llama3.1"
+
+[llm.groq]
+api_key = ""                   # or GROQ_API_KEY env var
+
+[llm.claude]
+api_key = ""                   # or ANTHROPIC_API_KEY env var
+model = "claude-sonnet-4-20250514"
+
+[llm.openai]
+api_key = ""                   # or OPENAI_API_KEY env var
+model = "gpt-4o-mini"
+
+[collectors]
+shell = true
+git = true
+file_watcher = true
+window_tracker = false         # opt-in, needs platform deps
+
+[ui]
+color_theme = "auto"
+```
+
+---
+
+## Privacy
+
+DevPulse is designed to be privacy-first:
+
+- **All data stays local** — stored in `~/.devpulse/devpulse.db` (SQLite)
+- **No telemetry** — zero network calls by the core tool
+- **LLM is opt-in** — all analysis works without it; only `suggest` and `insights` use it
+- **You choose the provider** — use Ollama for 100% local inference
+- **Data retention** — old events auto-deleted after 90 days (configurable)
+- **Export and reset** — you own your data; export or delete at any time
+
+---
+
+## Platform support
+
+| Platform | Shell hooks | Git collector | File watcher | Window tracker |
+|----------|------------|---------------|--------------|----------------|
+| macOS    | zsh, bash  | ✅            | ✅           | ✅ (osascript) |
+| Linux    | zsh, bash  | ✅            | ✅           | X11 only       |
+| WSL      | zsh, bash  | ✅            | ✅           | ❌             |
+| Windows  | ❌ use WSL  | —             | —            | —              |
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/you/devpulse
+cd devpulse
+pip install -e ".[all,dev]"
+make test
+```
+
+```bash
+make dev        # install with all optional deps
+make test       # run pytest
+make test-cov   # run with coverage report
+make clean      # remove build artifacts
+```
+
+---
+
+## Contributing
+
+1. Fork the repo
+2. Create a branch: `git checkout -b feature/my-feature`
+3. Write tests for new code
+4. Run `make test` — all tests must pass
+5. Open a pull request
+
+Please keep the core (`pip install devpulse`) dependency-free from paid LLM providers.

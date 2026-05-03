@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevPulse</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  tailwind.config = { darkMode: 'class' }
+</script>
+<style>
+  body { background: #0f1117; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
+  .card { background: #1a1f2e; border: 1px solid #2d3548; border-radius: 12px; }
+  .sidebar-item { transition: all 0.15s; border-radius: 8px; cursor: pointer; }
+  .sidebar-item:hover { background: #2d3548; }
+  .sidebar-item.active { background: #3b4fd4; color: white; }
+  .stat-card { background: linear-gradient(135deg, #1a1f2e, #1e2538); border: 1px solid #2d3548; border-radius: 12px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+  .progress-bar { height: 6px; border-radius: 3px; background: #2d3548; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #0f1117; }
+  ::-webkit-scrollbar-thumb { background: #2d3548; border-radius: 2px; }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.5 } }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:none } }
+  .cmd-row:hover { background: #1e2538; }
+  .toil-row:hover { background: #1e2538; }
+</style>
+</head>
+<body class="min-h-screen flex">
+
+<!-- Sidebar -->
+<aside class="w-56 flex-shrink-0 flex flex-col p-4 border-r border-gray-800" style="background:#13172a">
+  <div class="mb-8 mt-2 px-2">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold" style="background:#3b4fd4">D</div>
+      <span class="font-bold text-white text-lg">DevPulse</span>
+    </div>
+    <div id="daemon-badge" class="mt-2 ml-1"></div>
+  </div>
+  <nav class="flex flex-col gap-1 flex-1">
+    <button class="sidebar-item active px-3 py-2 text-left text-sm flex items-center gap-2" data-page="dashboard">
+      <span>📊</span> Dashboard
+    </button>
+    <button class="sidebar-item px-3 py-2 text-left text-sm flex items-center gap-2" data-page="projects">
+      <span>📁</span> Projects
+    </button>
+    <button class="sidebar-item px-3 py-2 text-left text-sm flex items-center gap-2" data-page="toil">
+      <span>🔄</span> Toil
+    </button>
+    <button class="sidebar-item px-3 py-2 text-left text-sm flex items-center gap-2" data-page="activity">
+      <span>⚡</span> Activity
+    </button>
+    <button class="sidebar-item px-3 py-2 text-left text-sm flex items-center gap-2" data-page="focus">
+      <span>🎯</span> Focus
+    </button>
+  </nav>
+  <div class="mt-4">
+    <button onclick="refreshAll()" class="w-full px-3 py-2 text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-2 rounded-lg hover:bg-gray-800">
+      <span id="refresh-icon">↻</span> Refresh
+    </button>
+    <div id="last-updated" class="text-xs text-gray-600 px-3 mt-1"></div>
+  </div>
+</aside>
+
+<!-- Main content -->
+<main class="flex-1 overflow-y-auto p-6">
+  <div id="page-dashboard" class="fade-in"></div>
+  <div id="page-projects" class="fade-in hidden"></div>
+  <div id="page-toil" class="fade-in hidden"></div>
+  <div id="page-activity" class="fade-in hidden"></div>
+  <div id="page-focus" class="fade-in hidden"></div>
+</main>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+const state = { today: null, week: null, projects: null, toil: null, events: null, focus: null, status: null };
+let charts = {};
+let currentPage = 'dashboard';
+
+// ─── API ─────────────────────────────────────────────────────────────────────
+async function api(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`${r.status}`);
+  return r.json();
+}
+
+// ─── Navigation ──────────────────────────────────────────────────────────────
+document.querySelectorAll('[data-page]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-page]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
+    const page = btn.dataset.page;
+    currentPage = page;
+    document.getElementById('page-' + page).classList.remove('hidden');
+    renderPage(page);
+  });
+});
+
+// ─── Charts ──────────────────────────────────────────────────────────────────
+function makeChart(id, config) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(canvas, config);
+}
+
+const COLORS = ['#3b4fd4','#22d3ee','#a78bfa','#34d399','#f59e0b','#f472b6','#60a5fa','#fb923c'];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function fmtDur(minutes) {
+  const h = Math.floor(minutes / 60), m = Math.round(minutes % 60);
+  return h ? `${h}h ${String(m).padStart(2,'0')}m` : `${m}m`;
+}
+function scoreColor(s) {
+  return s >= 70 ? '#34d399' : s >= 40 ? '#f59e0b' : '#f87171';
+}
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+function section(title, content) {
+  return `<div class="card p-5 mb-5">
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">${title}</h2>
+    ${content}
+  </div>`;
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const t = state.today, w = state.week;
+  if (!t || !w) { document.getElementById('page-dashboard').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
+
+  const fc = scoreColor(t.focus_score);
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+
+  let html = `
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white">${dateStr}</h1>
+      <p class="text-gray-400 text-sm mt-1">Your development activity overview</p>
+    </div>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="grid grid-cols-5 gap-4 mb-5">
+    ${statCard('⏱', fmtDur(t.total_minutes), 'Active today', '#22d3ee')}
+    ${statCard('📋', t.total_cmds, 'Commands', '#a78bfa')}
+    ${statCard('💾', t.total_commits, 'Commits', '#34d399')}
+    ${statCard('🔀', t.switches, 'Ctx switches', '#f59e0b')}
+    ${statCard('🎯', `${t.focus_score}/100`, 'Focus score', fc)}
+  </div>
+
+  <div class="grid grid-cols-2 gap-5 mb-5">
+    <!-- Today projects chart -->
+    <div class="card p-5">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Today's Project Time</h2>
+      <div style="height:220px"><canvas id="chart-today-projects"></canvas></div>
+    </div>
+
+    <!-- Week projects chart -->
+    <div class="card p-5">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Week Project Hours</h2>
+      <div style="height:220px"><canvas id="chart-week-projects"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Deep work blocks -->
+  ${t.deep_work_blocks && t.deep_work_blocks.length ? `
+  <div class="card p-5 mb-5">
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Deep Work Blocks</h2>
+    <div class="space-y-2">
+      ${t.deep_work_blocks.sort((a,b)=>b.duration_minutes-a.duration_minutes).slice(0,5).map((b,i) => {
+        const pct = b.duration_minutes / Math.max(...t.deep_work_blocks.map(x=>x.duration_minutes)) * 100;
+        return `<div class="flex items-center gap-3 text-sm">
+          <span class="text-gray-400 w-28 flex-shrink-0 font-mono text-xs">${b.start} – ${b.end}</span>
+          <span class="text-white w-32 flex-shrink-0">${b.project}</span>
+          <div class="progress-bar flex-1"><div class="progress-fill" style="width:${pct}%;background:${COLORS[i%COLORS.length]}"></div></div>
+          <span class="text-cyan-400 w-16 text-right text-xs">${fmtDur(b.duration_minutes)}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- Week summary -->
+  <div class="card p-5">
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">7-Day Summary</h2>
+    <div class="grid grid-cols-4 gap-4">
+      ${miniStat('Total hours', `${w.total_hours}h`, '#22d3ee')}
+      ${miniStat('Commits', w.total_commits, '#34d399')}
+      ${miniStat('Ctx switches', w.switches, '#f59e0b')}
+      ${miniStat('Switches/day', w.switches_per_day, '#a78bfa')}
+    </div>
+  </div>`;
+
+  document.getElementById('page-dashboard').innerHTML = html;
+
+  // Today doughnut
+  if (t.projects.length) {
+    makeChart('chart-today-projects', {
+      type: 'doughnut',
+      data: {
+        labels: t.projects.map(p => p.name),
+        datasets: [{ data: t.projects.map(p => p.minutes), backgroundColor: COLORS, borderWidth: 2, borderColor: '#1a1f2e' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 10 } } } }
+    });
+  }
+
+  // Week bar
+  if (w.projects.length) {
+    makeChart('chart-week-projects', {
+      type: 'bar',
+      data: {
+        labels: w.projects.map(p => p.name),
+        datasets: [{ label: 'Hours', data: w.projects.map(p => p.hours), backgroundColor: COLORS, borderRadius: 4 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: '#2d3548' }, ticks: { color: '#9ca3af' } },
+          y: { grid: { display: false }, ticks: { color: '#e2e8f0' } }
+        }
+      }
+    });
+  }
+}
+
+function statCard(icon, value, label, color) {
+  return `<div class="stat-card p-4">
+    <div class="text-lg mb-1">${icon}</div>
+    <div class="text-2xl font-bold" style="color:${color}">${value}</div>
+    <div class="text-xs text-gray-500 mt-1">${label}</div>
+  </div>`;
+}
+function miniStat(label, value, color) {
+  return `<div class="text-center p-3 rounded-lg" style="background:#0f1117">
+    <div class="text-xl font-bold" style="color:${color}">${value}</div>
+    <div class="text-xs text-gray-500 mt-1">${label}</div>
+  </div>`;
+}
+
+// ─── Projects ─────────────────────────────────────────────────────────────────
+function renderProjects() {
+  const data = state.projects;
+  if (!data) { document.getElementById('page-projects').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
+
+  let html = `
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">Projects</h1>
+    <span class="text-gray-500 text-sm">Last 7 days</span>
+  </div>
+  <div class="grid grid-cols-2 gap-5 mb-5">
+    <div class="card p-5">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Time Distribution</h2>
+      <div style="height:260px"><canvas id="chart-projects-pie"></canvas></div>
+    </div>
+    <div class="card p-5">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Hours per Project</h2>
+      <div style="height:260px"><canvas id="chart-projects-bar"></canvas></div>
+    </div>
+  </div>
+  <div class="card p-5">
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">All Projects</h2>
+    <table class="w-full text-sm">
+      <thead><tr class="text-gray-500 text-xs uppercase border-b border-gray-800">
+        <th class="text-left pb-2">Project</th>
+        <th class="text-right pb-2">Hours</th>
+        <th class="text-right pb-2">Commits</th>
+        <th class="pb-2" style="min-width:160px">Share</th>
+      </tr></thead>
+      <tbody>
+        ${data.map((p, i) => `
+        <tr class="border-b border-gray-800/50 hover:bg-gray-800/20">
+          <td class="py-2.5">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${COLORS[i%COLORS.length]}"></span>
+              <span class="text-white font-medium">${p.name}</span>
+            </div>
+          </td>
+          <td class="text-right text-cyan-400 font-mono">${p.hours}h</td>
+          <td class="text-right text-gray-400">${p.commits}</td>
+          <td class="py-2.5 pl-4">
+            <div class="flex items-center gap-2">
+              <div class="progress-bar flex-1"><div class="progress-fill" style="width:${p.pct}%;background:${COLORS[i%COLORS.length]}"></div></div>
+              <span class="text-gray-500 text-xs w-10 text-right">${p.pct}%</span>
+            </div>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
+  document.getElementById('page-projects').innerHTML = html;
+
+  if (data.length) {
+    makeChart('chart-projects-pie', {
+      type: 'doughnut',
+      data: { labels: data.map(p=>p.name), datasets: [{ data: data.map(p=>p.hours), backgroundColor: COLORS, borderWidth: 2, borderColor: '#1a1f2e' }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 10 } } } }
+    });
+    makeChart('chart-projects-bar', {
+      type: 'bar',
+      data: { labels: data.map(p=>p.name), datasets: [{ label: 'Hours', data: data.map(p=>p.hours), backgroundColor: COLORS, borderRadius: 4 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { grid: { color: '#2d3548' }, ticks: { color: '#9ca3af' } }, y: { grid: { display: false }, ticks: { color: '#e2e8f0' } } }
+      }
+    });
+  }
+}
+
+// ─── Toil ─────────────────────────────────────────────────────────────────────
+function renderToil() {
+  const data = state.toil;
+  if (!data) { document.getElementById('page-toil').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
+
+  const totalWasted = data.reduce((s, p) => s + p.wasted_hours, 0);
+
+  let html = `
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">Toil Detection</h1>
+    <span class="badge" style="background:#7f1d1d;color:#fca5a5">~${totalWasted.toFixed(1)}h wasted</span>
+  </div>
+  ${data.length === 0 ? `<div class="card p-8 text-center text-gray-500">No repeated command patterns detected yet.<br><span class="text-sm">Keep using your shell — patterns will appear here.</span></div>` : `
+  <div class="grid grid-cols-2 gap-5 mb-5">
+    <div class="card p-5">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Repetition Count</h2>
+      <div style="height:220px"><canvas id="chart-toil-count"></canvas></div>
+    </div>
+    <div class="card p-5">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Time Wasted</h2>
+      <div style="height:220px"><canvas id="chart-toil-wasted"></canvas></div>
+    </div>
+  </div>
+  <div class="card p-5">
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Repeated Patterns</h2>
+    <div class="space-y-3">
+      ${data.map((p, i) => `
+      <div class="toil-row p-3 rounded-lg border border-gray-800 cursor-pointer" onclick="copyToClipboard('devpulse suggest ${p.id}')">
+        <div class="flex items-start justify-between gap-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${COLORS[i%COLORS.length]}"></span>
+              <span class="text-xs text-gray-500">Pattern #${p.id}</span>
+            </div>
+            <div class="font-mono text-sm text-yellow-300 truncate">${p.label}</div>
+            <div class="flex flex-wrap gap-1 mt-2">
+              ${p.commands.map(c => `<span class="badge" style="background:#1e2538;color:#94a3b8">${c}</span>`).join('')}
+            </div>
+          </div>
+          <div class="flex-shrink-0 text-right">
+            <div class="text-orange-400 font-bold text-lg">×${p.count}</div>
+            <div class="text-red-400 text-xs">~${p.wasted_hours}h wasted</div>
+            <div class="text-gray-600 text-xs mt-1">click to copy suggest cmd</div>
+          </div>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`}`;
+
+  document.getElementById('page-toil').innerHTML = html;
+
+  if (data.length) {
+    const labels = data.map(p => `#${p.id}`);
+    makeChart('chart-toil-count', {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Times', data: data.map(p=>p.count), backgroundColor: '#f59e0b', borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af' } }, y: { grid: { color: '#2d3548' }, ticks: { color: '#9ca3af' } } } }
+    });
+    makeChart('chart-toil-wasted', {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Hours', data: data.map(p=>p.wasted_hours), backgroundColor: '#ef4444', borderRadius: 4 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af' } }, y: { grid: { color: '#2d3548' }, ticks: { color: '#9ca3af' } } } }
+    });
+  }
+}
+
+// ─── Activity ─────────────────────────────────────────────────────────────────
+function renderActivity() {
+  const data = state.events;
+  if (!data) { document.getElementById('page-activity').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
+
+  const projectColors = {};
+  [...new Set(data.map(e=>e.project))].forEach((p,i) => projectColors[p] = COLORS[i%COLORS.length]);
+
+  let html = `
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">Activity Feed</h1>
+    <span class="text-gray-500 text-sm">${data.length} events (last 7 days)</span>
+  </div>
+  <div class="card p-5">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-gray-500 text-xs uppercase border-b border-gray-800">
+          <th class="text-left pb-2 pr-4">Time</th>
+          <th class="text-left pb-2 pr-4">Project</th>
+          <th class="text-left pb-2 pr-4">Command</th>
+          <th class="text-center pb-2">Exit</th>
+        </tr></thead>
+        <tbody>
+          ${data.slice(0, 100).map(e => {
+            const ts = new Date(e.timestamp);
+            const timeStr = ts.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+            const dateStr = ts.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+            const c = projectColors[e.project] || '#9ca3af';
+            const exitOk = e.exit_code === 0;
+            return `<tr class="cmd-row border-b border-gray-800/40">
+              <td class="py-2 pr-4 text-gray-500 font-mono text-xs whitespace-nowrap">${dateStr} ${timeStr}</td>
+              <td class="py-2 pr-4"><span class="badge" style="background:${c}22;color:${c}">${e.project}</span></td>
+              <td class="py-2 pr-4 font-mono text-xs text-gray-300 max-w-md truncate">${e.cmd || '—'}</td>
+              <td class="py-2 text-center"><span class="badge ${exitOk ? '' : ''}" style="background:${exitOk?'#14532d':'#7f1d1d'};color:${exitOk?'#86efac':'#fca5a5'}">${e.exit_code}</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      ${data.length > 100 ? `<p class="text-center text-gray-600 text-xs mt-3">Showing 100 of ${data.length} events</p>` : ''}
+    </div>
+  </div>`;
+
+  document.getElementById('page-activity').innerHTML = html;
+}
+
+// ─── Focus ─────────────────────────────────────────────────────────────────────
+function renderFocus() {
+  const data = state.focus;
+  if (!data) { document.getElementById('page-focus').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
+
+  const { today, week } = data;
+  const todayColor = scoreColor(today.focus_score);
+  const weekColor = scoreColor(week.focus_score);
+
+  let html = `
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">Focus Quality</h1>
+  </div>
+
+  <div class="grid grid-cols-2 gap-5 mb-5">
+    <!-- Today focus -->
+    <div class="card p-5">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Today</h2>
+      <div class="flex items-center gap-6">
+        <div class="relative w-28 h-28">
+          <canvas id="chart-focus-today"></canvas>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <span class="text-2xl font-bold" style="color:${todayColor}">${today.focus_score}</span>
+          </div>
+        </div>
+        <div class="space-y-2 text-sm">
+          ${focusStat('Context switches', today.switches, '#f59e0b')}
+          ${focusStat('Fragmentation', today.fragmentation_score + '/100', '#f87171')}
+        </div>
+      </div>
+      ${today.deep_work_blocks && today.deep_work_blocks.length ? `
+      <div class="mt-4 pt-4 border-t border-gray-800">
+        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Deep work blocks</div>
+        ${today.deep_work_blocks.map(b => `
+        <div class="flex items-center justify-between text-sm py-1">
+          <span class="text-gray-400 font-mono text-xs">${b.start}–${b.end}</span>
+          <span class="text-white">${b.project}</span>
+          <span class="text-cyan-400 text-xs">${fmtDur(b.duration_minutes)}</span>
+        </div>`).join('')}
+      </div>` : ''}
+    </div>
+
+    <!-- Week focus -->
+    <div class="card p-5">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">This Week</h2>
+      <div class="flex items-center gap-6">
+        <div class="relative w-28 h-28">
+          <canvas id="chart-focus-week"></canvas>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <span class="text-2xl font-bold" style="color:${weekColor}">${week.focus_score}</span>
+          </div>
+        </div>
+        <div class="space-y-2 text-sm">
+          ${focusStat('Total switches', week.switches, '#f59e0b')}
+          ${focusStat('Switches/day', week.switches_per_day, '#a78bfa')}
+          ${focusStat('Fragmentation', week.fragmentation_score + '/100', '#f87171')}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top transitions -->
+  ${week.top_transitions && week.top_transitions.length ? `
+  <div class="card p-5">
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Most Common Project Transitions (week)</h2>
+    <div class="space-y-2">
+      ${week.top_transitions.map((t, i) => {
+        const max = week.top_transitions[0].count;
+        const pct = t.count / max * 100;
+        return `<div class="flex items-center gap-3 text-sm">
+          <span class="text-gray-300 w-40 truncate text-right">${t.from_project}</span>
+          <span class="text-gray-500">→</span>
+          <span class="text-gray-300 w-40 truncate">${t.to_project}</span>
+          <div class="progress-bar flex-1"><div class="progress-fill" style="width:${pct}%;background:${COLORS[i%COLORS.length]}"></div></div>
+          <span class="text-gray-400 text-xs w-10 text-right">×${t.count}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>` : ''}`;
+
+  document.getElementById('page-focus').innerHTML = html;
+
+  [
+    { id: 'chart-focus-today', score: today.focus_score, color: todayColor },
+    { id: 'chart-focus-week', score: week.focus_score, color: weekColor },
+  ].forEach(({ id, score, color }) => {
+    makeChart(id, {
+      type: 'doughnut',
+      data: { datasets: [{ data: [score, 100-score], backgroundColor: [color, '#2d3548'], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+    });
+  });
+}
+
+function focusStat(label, value, color) {
+  return `<div><span class="text-gray-500 text-xs">${label}</span><br><span class="font-semibold" style="color:${color}">${value}</span></div>`;
+}
+
+// ─── Data loading ──────────────────────────────────────────────────────────────
+async function loadStatus() {
+  try {
+    state.status = await api('/api/status');
+    const b = document.getElementById('daemon-badge');
+    if (state.status.daemon_running) {
+      b.innerHTML = '<span class="text-xs text-green-400 flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-400 rounded-full pulse inline-block"></span>Daemon running</span>';
+    } else {
+      b.innerHTML = '<span class="text-xs text-red-400 flex items-center gap-1"><span class="w-1.5 h-1.5 bg-red-400 rounded-full inline-block"></span>Daemon stopped</span>';
+    }
+  } catch {}
+}
+
+async function loadAll() {
+  document.getElementById('refresh-icon').style.transform = 'rotate(360deg)';
+  document.getElementById('refresh-icon').style.transition = 'transform 0.5s';
+  setTimeout(() => { document.getElementById('refresh-icon').style.transform = ''; document.getElementById('refresh-icon').style.transition = ''; }, 500);
+
+  await loadStatus();
+  const [today, week, projects, toil, events, focus] = await Promise.allSettled([
+    api('/api/stats/today'),
+    api('/api/stats/week'),
+    api('/api/projects'),
+    api('/api/toil'),
+    api('/api/events?limit=200'),
+    api('/api/focus'),
+  ]);
+  if (today.status === 'fulfilled') state.today = today.value;
+  if (week.status === 'fulfilled') state.week = week.value;
+  if (projects.status === 'fulfilled') state.projects = projects.value;
+  if (toil.status === 'fulfilled') state.toil = toil.value;
+  if (events.status === 'fulfilled') state.events = events.value;
+  if (focus.status === 'fulfilled') state.focus = focus.value;
+
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  renderPage(currentPage);
+}
+
+function renderPage(page) {
+  const fns = { dashboard: renderDashboard, projects: renderProjects, toil: renderToil, activity: renderActivity, focus: renderFocus };
+  if (fns[page]) fns[page]();
+}
+
+function refreshAll() { loadAll(); }
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const tip = document.createElement('div');
+    tip.textContent = 'Copied: ' + text;
+    tip.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#3b4fd4;color:white;padding:8px 16px;border-radius:8px;font-size:13px;z-index:9999;';
+    document.body.appendChild(tip);
+    setTimeout(() => tip.remove(), 2500);
+  }).catch(() => {});
+}
+
+// ─── Auto-refresh every 30s ──────────────────────────────────────────────────
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>
