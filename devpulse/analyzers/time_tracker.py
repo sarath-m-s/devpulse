@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any
@@ -19,6 +20,14 @@ _CATEGORY_PATTERNS: list[tuple[str, list[str]]] = [
     ("build", ["make", "npm run build", "cargo build", "go build", "yarn build"]),
     ("coding", ["vim", "nvim", "code ", "nano ", "cat "]),
 ]
+
+
+_GIT_COMMIT_RE = re.compile(r"^git\s+commit\b")
+
+
+def _is_git_commit_command(cmd: str) -> bool:
+    """Return True if the shell command is a git commit invocation."""
+    return bool(_GIT_COMMIT_RE.match(cmd.strip()))
 
 
 def _categorize_command(cmd: str) -> str:
@@ -87,6 +96,16 @@ def compute_time_per_project(
         result[proj]["by_category"]["git"] = (
             result[proj]["by_category"].get("git", 0.0) + _COMMIT_MINUTES
         )
+
+    # --- Fallback: count "git commit" shell commands when collector has no data ---
+    if not git_events:
+        for ev in cmd_events:
+            cmd = ev.get("data", {}).get("cmd", "")
+            if _is_git_commit_command(cmd):
+                proj = ev.get("project") or "unknown"
+                if proj not in result:
+                    result[proj] = {"total_minutes": 0.0, "by_category": {}, "commits": 0}
+                result[proj]["commits"] += 1
 
     # --- Window focus (if available) ---
     win_events = db.query_events(event_type="window_focus", since=since, until=until)

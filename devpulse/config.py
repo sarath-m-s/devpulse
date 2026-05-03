@@ -154,17 +154,26 @@ def auto_detect_projects() -> list[str]:
         Path.home() / "projects",
         Path.home() / "code",
         Path.home() / "src",
+        Path.home() / "upskill",
+        Path.home() / "repos",
+        Path.home() / "dev",
+        Path.home() / "github",
+        Path.home() / "workspace",
+        Path.home() / "Developer",
         Path.home(),
     ]
     found: list[str] = []
+    seen: set[str] = set()
     for base in candidates:
         if not base.is_dir():
             continue
         try:
             for child in sorted(base.iterdir()):
-                if child.is_dir() and (child / ".git").exists():
+                resolved = str(child.resolve())
+                if child.is_dir() and (child / ".git").exists() and resolved not in seen:
+                    seen.add(resolved)
                     found.append(str(child))
-                    if len(found) >= 20:
+                    if len(found) >= 30:
                         return found
         except PermissionError:
             continue

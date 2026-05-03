@@ -5,17 +5,17 @@
 
 <p align="center">
   <a href="#installation">Installation</a> &bull;
-  <a href="#whats-new-in-v2">What's New in v2</a> &bull;
   <a href="#features">Features</a> &bull;
-  <a href="#v2-intelligence-features">v2 Intelligence</a> &bull;
+  <a href="#web-dashboard">Web Dashboard</a> &bull;
   <a href="#cli-reference">CLI Reference</a> &bull;
-  <a href="#configuration">Configuration</a>
+  <a href="#configuration">Configuration</a> &bull;
+  <a href="#contributing">Contributing</a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="v2.0.0">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
+  <img src="https://img.shields.io/badge/status-alpha-orange" alt="Alpha">
   <img src="https://img.shields.io/badge/LLM-opt--in-yellow" alt="LLM opt-in">
 </p>
 
@@ -54,41 +54,31 @@ DevPulse silently observes your workflow — shell commands, git activity, file 
 
 ---
 
-## What's New in v2
-
-v2 adds a full **Intelligence Layer** on top of v1's data collection:
-
-| Feature | Description | Works without LLM? |
-|---------|-------------|-------------------|
-| **Workflow Predictor** | Learns your per-project command routines and predicts next steps | ✅ Yes |
-| **Error Memory** | Records failed commands and their fixes, surfaces recurring issues | ✅ Yes |
-| **Context Restore** | Captures session snapshots so you can instantly resume after a break | ✅ Yes (LLM adds summary) |
-| **Developer Fingerprint** | Builds your energy map, coding style, and focus pattern | ✅ Yes (LLM adds narrative) |
-| **Focus Guard** | Real-time notifications when you break a focus session | ✅ Yes |
-
-**New CLI commands:** `devpulse next`, `devpulse recall`, `devpulse resume`, `devpulse profile`, `devpulse focus`
-
-**Enhanced dashboard:** `devpulse today` now shows focus sessions, predicted next actions, and recurring errors.
-
-**Enhanced insights:** `devpulse insights` now includes energy patterns, error analysis, and workflow fingerprint.
-
----
-
 ## Installation
 
 ```bash
 pip install devpulse
-devpulse init
+devpulse init --path ~/your-projects
 ```
 
 Or install directly from GitHub:
 
 ```bash
 pip install git+https://github.com/sarathms/devpulse.git
-devpulse init
+devpulse init --path ~/your-projects
 ```
 
-`devpulse init` creates `~/.devpulse/`, writes a default config, auto-detects your git projects, initializes the local database, and prints shell hook setup instructions.
+The `--path` flag tells DevPulse where your git repos live. It can be a parent directory containing multiple repos, or a single repo. You can pass it multiple times:
+
+```bash
+devpulse init --path ~/work --path ~/personal --path ~/oss
+```
+
+If you omit `--path`, DevPulse scans common directories (`~/work`, `~/projects`, `~/code`, `~/src`, `~/upskill`, `~/dev`, `~/repos`, `~`) for git repos automatically. You can always add more later:
+
+```bash
+devpulse projects add ~/another-folder
+```
 
 ### Shell hooks
 
@@ -150,34 +140,31 @@ devpulse suggest 1              # generate a bash alias for pattern #1
 Tracks how often you switch between projects and computes a focus score (0-100). Identifies deep work blocks — uninterrupted stretches on a single project — so you can see when you do your best work.
 
 ```bash
-devpulse today      # includes focus score and deep work blocks
+devpulse today                  # includes focus score and deep work blocks
+devpulse focus                  # detailed focus sessions for today
+devpulse focus --guard on       # enable real-time focus guard notifications
+devpulse focus --threshold 20   # notify after 20 min of continuous focus is broken
 ```
 
-### LLM-powered insights
+The focus guard runs in the daemon. When you switch projects after a sustained focus session, it notifies you with the cost: *"You were focused for 42 minutes. Context switches typically cost ~23 minutes to recover."*
 
-Opt-in AI analysis that summarizes your activity into actionable productivity insights. In v2, this also includes energy map analysis, error patterns, and workflow fingerprint narrative.
-
----
-
-## v2 Intelligence Features
-
-### Workflow Prediction
+### Workflow prediction
 
 DevPulse learns your per-project command sequences over time and predicts what you'll do next.
 
 ```bash
 devpulse next                   # show predicted next commands for current project
 devpulse next colearn           # for a specific project
-devpulse next --run             # execute predictions immediately (no confirmation)
+devpulse next --run             # execute predictions immediately
 devpulse next --list            # list all learned routines
 devpulse next --dismiss 3       # stop suggesting routine #3
 ```
 
 Predictions require at least 2 occurrences of a sequence. Confidence reaches 100% at 20+ repetitions.
 
-### Error Memory
+### Error memory
 
-Automatically records every failed command and links it to the commands that fixed it.
+Automatically records every failed command and links it to the commands that fixed it. Next time you hit the same error, DevPulse surfaces the fix.
 
 ```bash
 devpulse recall                 # browse error history
@@ -187,9 +174,7 @@ devpulse recall --days 14       # limit to last 2 weeks
 devpulse recall --show-diff 5   # show git diff for error #5
 ```
 
-Errors are recorded automatically when `log-cmd` captures a non-zero exit code. Fixes are linked when successful commands follow an error in the same session.
-
-### Context Restore
+### Context restore
 
 Captures session snapshots when you stop working, so you can instantly re-orient when you come back.
 
@@ -198,45 +183,28 @@ devpulse resume                 # list all projects with their last session
 devpulse resume colearn         # show full context for a specific project
 devpulse resume --open          # resume + open last file in $EDITOR
 devpulse resume --checkout      # also git checkout the saved branch
-devpulse resume --json          # output as JSON for scripting
 ```
 
-Snapshots include: git branch, last file edited, last command (with ❌ if it failed), uncommitted files, session duration, and an optional LLM-generated summary.
+Snapshots include: git branch, last file edited, last command (with error indicator if it failed), uncommitted files, session duration, and an optional LLM-generated summary.
 
-### Developer Fingerprint
+### Developer fingerprint
 
-Analyzes your historical data to build a personal productivity profile.
+Analyzes your historical data to build a personal productivity profile with three components:
+
+- **Energy map** — productivity by hour of day; identifies peak and low-energy hours
+- **Workflow fingerprint** — coding style (morning/evening, test-first/after, commit frequency, top tools)
+- **Focus pattern** — average deep work block duration, distractors, fragmentation trend
 
 ```bash
 devpulse profile                # show cached profile (generates if none exists)
 devpulse profile --regenerate   # force fresh analysis
 devpulse profile --type energy  # show only energy map
-devpulse profile --type workflow # show only workflow fingerprint
-devpulse profile --type focus   # show only focus pattern
 devpulse profile --days 30      # use 30 days of data
 ```
 
-Three profile types:
-- **Energy map** — productivity by hour of day; identifies peak and low-energy hours
-- **Workflow fingerprint** — coding style (morning/evening, test-first/after, commit frequency, top tools)
-- **Focus pattern** — average deep work block duration, distractors, fragmentation trend
+### LLM-powered insights
 
-### Focus Guard
-
-Real-time monitoring that notifies you when you break a focus session.
-
-```bash
-devpulse focus                  # show today's focus sessions
-devpulse focus --guard on       # enable focus guard notifications
-devpulse focus --guard off      # disable notifications
-devpulse focus --threshold 20   # require 20 min of focus before notifying
-```
-
-Focus guard runs in the daemon. When you switch projects after `focus_threshold_minutes` of continuous focus, it sends a notification with the cost estimate: *"You were focused for 42 minutes. Context switches typically cost ~23 minutes to recover."*
-
-Notification methods: `terminal` (bell + print), `desktop` (macOS/Linux), `both`, `none`.
-
----
+Opt-in AI analysis that summarizes your activity into actionable productivity insights, including energy patterns, error analysis, and workflow fingerprint narrative.
 
 ```bash
 devpulse insights --days 7
@@ -250,7 +218,7 @@ Already have months of shell history? Import it in one shot:
 devpulse backfill --shell auto --limit 5000
 ```
 
-Supports zsh extended history format and bash timestamped history. Project names are inferred from `cd` commands using forward/backward propagation.
+Supports zsh extended history format and bash timestamped history. Project names are inferred from `cd` commands using forward/backward propagation. Also backfills git commit history from your tracked repos.
 
 ### Data export
 
@@ -322,7 +290,7 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 | Command | Description |
 |---------|-------------|
-| `devpulse init` | First-time setup: creates config, detects projects, initializes DB |
+| `devpulse init [--path DIR]` | First-time setup: creates config, detects projects, initializes DB. Pass `--path` to specify where your repos live. |
 | `devpulse start` | Start the background collector daemon |
 | `devpulse stop` | Stop the daemon |
 | `devpulse status` | Show daemon state, commands today, most active project |
@@ -336,23 +304,18 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 |---------|-------------|
 | `devpulse toil [--days N]` | List repeated command patterns (default: 14 days) |
 | `devpulse suggest [id]` | Generate an automation script for a toil pattern (requires LLM) |
-| `devpulse insights [--days N]` | LLM-powered productivity insights, now includes v2 energy + error analysis |
-
-### v2 Intelligence commands
-
-| Command | Description | LLM needed? |
-|---------|-------------|-------------|
-| `devpulse next [project] [--run] [--list] [--dismiss ID]` | Show/run predicted next actions | No |
-| `devpulse recall [query] [--project P] [--days N] [--show-diff ID]` | Search error memory and past fixes | No |
-| `devpulse resume [project] [--open] [--checkout] [--json]` | Restore session context for a project | Optional |
-| `devpulse profile [--regenerate] [--type T] [--days N] [--json]` | Show developer fingerprint | Optional |
-| `devpulse focus [--guard on\|off] [--threshold N]` | Show focus sessions, configure focus guard | No |
+| `devpulse insights [--days N]` | LLM-powered productivity insights (default: 7 days) |
+| `devpulse next [project] [--run] [--list] [--dismiss ID]` | Show/run predicted next actions |
+| `devpulse recall [query] [--project P] [--days N] [--show-diff ID]` | Search error memory and past fixes |
+| `devpulse resume [project] [--open] [--checkout] [--json]` | Restore session context for a project |
+| `devpulse profile [--regenerate] [--type T] [--days N] [--json]` | Show developer fingerprint |
+| `devpulse focus [--guard on\|off] [--threshold N]` | Show focus sessions, configure focus guard |
 
 ### Data commands
 
 | Command | Description |
 |---------|-------------|
-| `devpulse backfill [--shell auto\|zsh\|bash] [--limit N]` | One-time import of shell history |
+| `devpulse backfill [--shell auto\|zsh\|bash] [--limit N] [--no-git]` | Import shell history and git commits |
 | `devpulse export [--from DATE] [--to DATE] [--format json\|csv] [--output PATH]` | Export events |
 | `devpulse reset [--keep-config]` | Delete all collected data |
 
@@ -376,7 +339,7 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 ## LLM providers
 
-DevPulse works fully without an LLM — time tracking, toil detection, dashboards, focus scoring, and the web UI all work offline. LLM is only used for `devpulse suggest` and `devpulse insights`.
+DevPulse works fully without an LLM — time tracking, toil detection, dashboards, focus scoring, workflow prediction, error memory, and the web UI all work offline. LLM is only used for `devpulse suggest`, `devpulse insights`, and optional summaries in `devpulse resume` and `devpulse profile`.
 
 | Provider | Model | Cost | Privacy | Setup |
 |----------|-------|------|---------|-------|
@@ -465,8 +428,7 @@ window_tracker = false          # opt-in, macOS/Linux X11 only
 [ui]
 color_theme = "auto"
 
-# v2 Intelligence settings
-[v2]
+[intelligence]
 # Workflow prediction
 prediction_confidence_threshold = 0.3   # minimum confidence to show a prediction
 prediction_learning_days = 30           # days of history to learn from
@@ -533,13 +495,18 @@ devpulse/
 ├── daemon.py            # Background daemon (double-fork)
 ├── collectors/
 │   ├── shell.py         # Shell command logging + history backfill
-│   ├── git_collector.py # Git commit/branch polling
+│   ├── git_collector.py # Git commit/branch polling + history backfill
 │   ├── file_watcher.py  # Config/infra file change detection
 │   └── window.py        # Active window tracking (opt-in)
 ├── analyzers/
 │   ├── time_tracker.py  # Per-project time estimation
 │   ├── context_switch.py# Focus scoring + deep work blocks
-│   └── toil.py          # Repeated pattern detection
+│   ├── toil.py          # Repeated pattern detection
+│   ├── workflow_predictor.py  # Command sequence learning + prediction
+│   ├── error_memory.py        # Failed command tracking + fix linking
+│   ├── context_restorer.py    # Session snapshot + resume
+│   ├── developer_fingerprint.py # Energy map, style, focus profiling
+│   └── focus_guard.py          # Real-time focus session monitoring
 ├── generators/
 │   ├── script_gen.py    # LLM-powered automation scripts
 │   └── report_gen.py    # LLM-powered insights + daily summaries
@@ -587,7 +554,7 @@ make test               # quick run
 make test-cov           # with coverage
 ```
 
-Tests cover the database layer, all collectors (including history parsing), all three analyzers, and the LLM provider abstraction. All tests use temporary directories for full isolation.
+Tests cover the database layer, all collectors, all analyzers, and the LLM provider abstraction. All tests use temporary directories for full isolation.
 
 ---
 

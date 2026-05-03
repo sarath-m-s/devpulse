@@ -97,13 +97,33 @@ def compute_context_switches(
     }
 
 
+_IDLE_GAP_MINUTES = 60
+
+
 def _find_deep_work_blocks(
     signals: list[tuple[datetime, str]],
     min_minutes: int,
 ) -> list[dict[str, Any]]:
-    """Find continuous stretches on the same project >= min_minutes."""
+    """Find continuous stretches on the same project >= min_minutes.
+
+    A block is broken when the project changes OR the gap between
+    consecutive events exceeds _IDLE_GAP_MINUTES (even within the same
+    project).  This prevents multi-day spans from being counted as a
+    single focus block.
+    """
     if not signals:
         return []
+
+    def _emit(start: datetime, end: datetime, proj: str) -> dict[str, Any] | None:
+        duration = (end - start).total_seconds() / 60
+        if duration >= min_minutes:
+            return {
+                "project": proj,
+                "start": start.strftime("%H:%M"),
+                "end": end.strftime("%H:%M"),
+                "duration_minutes": round(duration),
+            }
+        return None
 
     blocks: list[dict[str, Any]] = []
     block_start = signals[0][0]
@@ -111,34 +131,18 @@ def _find_deep_work_blocks(
     last_ts = signals[0][0]
 
     for ts, proj in signals[1:]:
-        if proj == block_proj:
-            last_ts = ts
-        else:
-            duration = (last_ts - block_start).total_seconds() / 60
-            if duration >= min_minutes:
-                blocks.append(
-                    {
-                        "project": block_proj,
-                        "start": block_start.strftime("%H:%M"),
-                        "end": last_ts.strftime("%H:%M"),
-                        "duration_minutes": round(duration),
-                    }
-                )
+        gap = (ts - last_ts).total_seconds() / 60
+        if proj != block_proj or gap > _IDLE_GAP_MINUTES:
+            b = _emit(block_start, last_ts, block_proj)
+            if b:
+                blocks.append(b)
             block_start = ts
             block_proj = proj
-            last_ts = ts
+        last_ts = ts
 
-    # Final block
-    duration = (last_ts - block_start).total_seconds() / 60
-    if duration >= min_minutes:
-        blocks.append(
-            {
-                "project": block_proj,
-                "start": block_start.strftime("%H:%M"),
-                "end": last_ts.strftime("%H:%M"),
-                "duration_minutes": round(duration),
-            }
-        )
+    b = _emit(block_start, last_ts, block_proj)
+    if b:
+        blocks.append(b)
 
     return blocks
 

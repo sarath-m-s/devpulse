@@ -5,13 +5,14 @@ from __future__ import annotations
 import subprocess
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from devpulse import db
 
 
-def _run_git(args: list[str], cwd: Path) -> str:
+def _run_git(args: list[str], cwd: Path, timeout: int = 5) -> str:
     """Run a git command in cwd; return stdout or empty string on failure."""
     try:
         result = subprocess.run(
@@ -19,7 +20,7 @@ def _run_git(args: list[str], cwd: Path) -> str:
             cwd=str(cwd),
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=timeout,
         )
         return result.stdout.strip()
     except Exception:
@@ -141,3 +142,124 @@ class GitCollector:
         self._stop_event.set()
         if self._thread:
             self._thread.join(timeout=5)
+
+
+# ---------------------------------------------------------------------------
+# Git history backfill
+# ---------------------------------------------------------------------------
+
+def _find_repos_in_paths(paths: list[str]) -> list[Path]:
+    """Discover git repos from a list of directory paths."""
+    repos: list[Path] = []
+    for p in paths:
+        p = Path(p).expanduser().resolve()
+        if not p.is_dir():
+            continue
+        if (p / ".git").exists():
+            repos.append(p)
+        else:
+            try:
+                for child in p.iterdir():
+                    if child.is_dir() and (child / ".git").exists():
+                        repos.append(child)
+            except PermissionError:
+                continue
+    return repos
+
+
+def backfill_git_commits(
+    project_paths: list[str],
+    since: str | None = None,
+    limit: int = 500,
+) -> int:
+    """Import historical git commits from repos as git_commit events.
+
+    Reads `git log` for each repo and inserts events that don't already
+    exist in the database (matched by SHA).  Returns total commits inserted.
+    """
+    repos = _find_repos_in_paths(project_paths)
+    if not repos:
+        return 0
+
+    existing_shas: set[str] = set()
+    for ev in db.query_events(event_type="git_commit"):
+        data = ev.get("data", {})
+        if isinstance(data, dict) and data.get("sha"):
+            existing_shas.add(data["sha"])
+
+    since_arg = []
+    if since:
+        since_arg = [f"--since={since}"]
+
+    inserted = 0
+    for repo in repos:
+        project = repo.name
+        log_output = _run_git(
+            ["log", "--format=%H|%aI|%s", *since_arg, f"-{limit}"],
+            repo,
+            timeout=15,
+        )
+        if not log_output:
+            continue
+
+        for line in log_output.splitlines():
+            parts = line.split("|", 2)
+            if len(parts) < 3:
+                continue
+            sha, iso_ts, message = parts[0].strip(), parts[1].strip(), parts[2].strip()
+            if sha in existing_shas:
+                continue
+
+            try:
+                ts = datetime.fromisoformat(iso_ts).strftime("%Y-%m-%dT%H:%M:%S")
+            except (ValueError, TypeError):
+                continue
+
+            stat = _run_git(["show", "--stat", "--format=", sha], repo, timeout=10)
+            files_changed = insertions = deletions = 0
+            for sline in stat.splitlines():
+                sline = sline.strip()
+                if "file" in sline and "changed" in sline:
+                    for part in sline.split(","):
+                        part = part.strip()
+                        if "file" in part:
+                            try:
+                                files_changed = int(part.split()[0])
+                            except (ValueError, IndexError):
+                                pass
+                        elif "insertion" in part:
+                            try:
+                                insertions = int(part.split()[0])
+                            except (ValueError, IndexError):
+                                pass
+                        elif "deletion" in part:
+                            try:
+                                deletions = int(part.split()[0])
+                            except (ValueError, IndexError):
+                                pass
+
+            branch = _run_git(
+                ["branch", "--contains", sha, "--format=%(refname:short)"],
+                repo,
+                timeout=5,
+            )
+            branch = branch.splitlines()[0].strip() if branch else ""
+
+            db.insert_event(
+                event_type="git_commit",
+                data={
+                    "sha": sha,
+                    "message": message,
+                    "files_changed": files_changed,
+                    "insertions": insertions,
+                    "deletions": deletions,
+                    "branch": branch,
+                    "backfilled": True,
+                },
+                project=project,
+                timestamp=ts,
+            )
+            existing_shas.add(sha)
+            inserted += 1
+
+    return inserted

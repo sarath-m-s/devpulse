@@ -44,23 +44,55 @@ def _get_cfg() -> dict:
 # ---------------------------------------------------------------------------
 
 @app.command()
-def init() -> None:
+def init(
+    path: Optional[list[str]] = typer.Option(
+        None, "--path", "-p",
+        help="Root directory containing your git repos (can be repeated)",
+    ),
+) -> None:
     """Initialize DevPulse: create config, detect projects, show hook instructions."""
     DEVPULSE_DIR.mkdir(parents=True, exist_ok=True)
     cfg = ensure_default_config()
 
-    # Auto-detect projects
-    found = auto_detect_projects()
     existing = set(cfg["projects"].get("paths", []))
-    new_paths = [p for p in found if p not in existing]
-    if new_paths:
-        cfg["projects"]["paths"] = list(existing) + new_paths
+
+    # Use explicitly provided paths first, then fall back to auto-detect
+    if path:
+        for p in path:
+            resolved = str(Path(p).expanduser().resolve())
+            if resolved not in existing:
+                existing.add(resolved)
+        cfg["projects"]["paths"] = sorted(existing)
         save_config(cfg)
-        console.print(f"[green]✓[/green] Detected {len(new_paths)} git repos")
+        console.print(f"[green]✓[/green] Added {len(path)} project path(s)")
+    else:
+        found = auto_detect_projects()
+        new_paths = [p for p in found if p not in existing]
+        if new_paths:
+            cfg["projects"]["paths"] = list(existing) + new_paths
+            save_config(cfg)
+            console.print(f"[green]✓[/green] Detected {len(new_paths)} git repos")
+        elif not existing:
+            console.print(
+                "[yellow]⚠[/yellow]  No git repos found in common directories"
+            )
+            console.print(
+                "  Tell DevPulse where your projects live:\n"
+                "    [bold]devpulse init --path ~/your-projects[/bold]\n"
+                "  or add them individually:\n"
+                "    [bold]devpulse projects add ~/your-projects[/bold]"
+            )
 
     db.init_db()
     console.print("[green]✓[/green] Database initialized")
     console.print(f"[green]✓[/green] Config at {DEVPULSE_DIR / 'config.toml'}")
+
+    # Show detected projects
+    final_paths = cfg["projects"].get("paths", [])
+    if final_paths:
+        console.print(f"[green]✓[/green] Tracking {len(final_paths)} project path(s):")
+        for p in final_paths:
+            console.print(f"    [dim]{p}[/dim]")
 
     # LLM probe
     from devpulse.llm.factory import get_provider
@@ -1334,13 +1366,33 @@ def reset(keep_config: bool = typer.Option(False, "--keep-config")) -> None:
 def backfill(
     shell: str = typer.Option("auto", "--shell", help="Shell type: auto, zsh, bash"),
     limit: int = typer.Option(5000, "--limit", help="Max commands to import"),
+    git: bool = typer.Option(True, "--git/--no-git", help="Also backfill git commit history"),
+    git_since: str = typer.Option("", "--git-since", help="Only import git commits after this date (YYYY-MM-DD)"),
+    git_limit: int = typer.Option(500, "--git-limit", help="Max git commits per repo"),
 ) -> None:
-    """Import shell history as a one-time backfill."""
+    """Import shell history and git commits as a one-time backfill."""
     db.init_db()
     from devpulse.collectors.shell import backfill_from_history
-    with console.status("Importing history…"):
+    with console.status("Importing shell history…"):
         n = backfill_from_history(shell=shell, limit=limit)
     console.print(f"[green]✓[/green] Imported {n} commands from shell history")
+
+    if git:
+        from devpulse.collectors.git_collector import backfill_git_commits
+        from devpulse.config import load_config
+        cfg = load_config()
+        project_paths = cfg.get("projects", {}).get("paths", [])
+        if not project_paths:
+            console.print("[yellow]⚠[/yellow] No project paths configured — skipping git backfill")
+            console.print("  Run [bold]devpulse projects add <path>[/bold] first")
+        else:
+            with console.status("Importing git commit history…"):
+                gc = backfill_git_commits(
+                    project_paths=project_paths,
+                    since=git_since or None,
+                    limit=git_limit,
+                )
+            console.print(f"[green]✓[/green] Imported {gc} commits from git history")
 
 
 # ---------------------------------------------------------------------------
