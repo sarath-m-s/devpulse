@@ -57,6 +57,22 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "ui": {
         "color_theme": "auto",
     },
+    "v2": {
+        "prediction_confidence_threshold": 0.3,
+        "prediction_learning_days": 30,
+        "auto_execute_predictions": False,
+        "error_retention_days": 180,
+        "auto_record_errors": True,
+        "error_similarity_threshold": 0.8,
+        "focus_guard_enabled": True,
+        "focus_threshold_minutes": 15,
+        "focus_notification_method": "terminal",
+        "focus_cooldown_minutes": 5,
+        "session_gap_minutes": 30,
+        "auto_snapshot": True,
+        "profile_auto_generate": True,
+        "profile_days": 30,
+    },
 }
 
 

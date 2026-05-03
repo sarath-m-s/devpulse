@@ -42,6 +42,22 @@ def log_command(
         session_id=session_id,
     )
 
+    # v2: Record failed commands in error memory (non-blocking, best-effort)
+    if exit_code != 0:
+        try:
+            from devpulse.config import load_config
+            cfg = load_config()
+            if cfg.get("v2", {}).get("auto_record_errors", True):
+                from devpulse.analyzers.error_memory import ErrorMemory
+                ErrorMemory().record_error(
+                    command=cmd,
+                    exit_code=exit_code,
+                    project=project or "",
+                    session_id=session_id or "",
+                )
+        except Exception:
+            pass  # never slow down or crash log-cmd
+
 
 # ---------------------------------------------------------------------------
 # History backfill

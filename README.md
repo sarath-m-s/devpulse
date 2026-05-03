@@ -5,17 +5,17 @@
 
 <p align="center">
   <a href="#installation">Installation</a> &bull;
+  <a href="#whats-new-in-v2">What's New in v2</a> &bull;
   <a href="#features">Features</a> &bull;
-  <a href="#web-dashboard">Web Dashboard</a> &bull;
+  <a href="#v2-intelligence-features">v2 Intelligence</a> &bull;
   <a href="#cli-reference">CLI Reference</a> &bull;
-  <a href="#configuration">Configuration</a> &bull;
-  <a href="#contributing">Contributing</a>
+  <a href="#configuration">Configuration</a>
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="v2.0.0">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-alpha-orange" alt="Alpha">
   <img src="https://img.shields.io/badge/LLM-opt--in-yellow" alt="LLM opt-in">
 </p>
 
@@ -51,6 +51,26 @@ DevPulse silently observes your workflow — shell commands, git activity, file 
 │                                                               │
 ╰───────────────────────────────────────────────────────────────╯
 ```
+
+---
+
+## What's New in v2
+
+v2 adds a full **Intelligence Layer** on top of v1's data collection:
+
+| Feature | Description | Works without LLM? |
+|---------|-------------|-------------------|
+| **Workflow Predictor** | Learns your per-project command routines and predicts next steps | ✅ Yes |
+| **Error Memory** | Records failed commands and their fixes, surfaces recurring issues | ✅ Yes |
+| **Context Restore** | Captures session snapshots so you can instantly resume after a break | ✅ Yes (LLM adds summary) |
+| **Developer Fingerprint** | Builds your energy map, coding style, and focus pattern | ✅ Yes (LLM adds narrative) |
+| **Focus Guard** | Real-time notifications when you break a focus session | ✅ Yes |
+
+**New CLI commands:** `devpulse next`, `devpulse recall`, `devpulse resume`, `devpulse profile`, `devpulse focus`
+
+**Enhanced dashboard:** `devpulse today` now shows focus sessions, predicted next actions, and recurring errors.
+
+**Enhanced insights:** `devpulse insights` now includes energy patterns, error analysis, and workflow fingerprint.
 
 ---
 
@@ -135,7 +155,88 @@ devpulse today      # includes focus score and deep work blocks
 
 ### LLM-powered insights
 
-Opt-in AI analysis that summarizes your activity into 3-5 actionable productivity insights.
+Opt-in AI analysis that summarizes your activity into actionable productivity insights. In v2, this also includes energy map analysis, error patterns, and workflow fingerprint narrative.
+
+---
+
+## v2 Intelligence Features
+
+### Workflow Prediction
+
+DevPulse learns your per-project command sequences over time and predicts what you'll do next.
+
+```bash
+devpulse next                   # show predicted next commands for current project
+devpulse next colearn           # for a specific project
+devpulse next --run             # execute predictions immediately (no confirmation)
+devpulse next --list            # list all learned routines
+devpulse next --dismiss 3       # stop suggesting routine #3
+```
+
+Predictions require at least 2 occurrences of a sequence. Confidence reaches 100% at 20+ repetitions.
+
+### Error Memory
+
+Automatically records every failed command and links it to the commands that fixed it.
+
+```bash
+devpulse recall                 # browse error history
+devpulse recall "CORS"          # search for specific error types
+devpulse recall --project myapp # filter by project
+devpulse recall --days 14       # limit to last 2 weeks
+devpulse recall --show-diff 5   # show git diff for error #5
+```
+
+Errors are recorded automatically when `log-cmd` captures a non-zero exit code. Fixes are linked when successful commands follow an error in the same session.
+
+### Context Restore
+
+Captures session snapshots when you stop working, so you can instantly re-orient when you come back.
+
+```bash
+devpulse resume                 # list all projects with their last session
+devpulse resume colearn         # show full context for a specific project
+devpulse resume --open          # resume + open last file in $EDITOR
+devpulse resume --checkout      # also git checkout the saved branch
+devpulse resume --json          # output as JSON for scripting
+```
+
+Snapshots include: git branch, last file edited, last command (with ❌ if it failed), uncommitted files, session duration, and an optional LLM-generated summary.
+
+### Developer Fingerprint
+
+Analyzes your historical data to build a personal productivity profile.
+
+```bash
+devpulse profile                # show cached profile (generates if none exists)
+devpulse profile --regenerate   # force fresh analysis
+devpulse profile --type energy  # show only energy map
+devpulse profile --type workflow # show only workflow fingerprint
+devpulse profile --type focus   # show only focus pattern
+devpulse profile --days 30      # use 30 days of data
+```
+
+Three profile types:
+- **Energy map** — productivity by hour of day; identifies peak and low-energy hours
+- **Workflow fingerprint** — coding style (morning/evening, test-first/after, commit frequency, top tools)
+- **Focus pattern** — average deep work block duration, distractors, fragmentation trend
+
+### Focus Guard
+
+Real-time monitoring that notifies you when you break a focus session.
+
+```bash
+devpulse focus                  # show today's focus sessions
+devpulse focus --guard on       # enable focus guard notifications
+devpulse focus --guard off      # disable notifications
+devpulse focus --threshold 20   # require 20 min of focus before notifying
+```
+
+Focus guard runs in the daemon. When you switch projects after `focus_threshold_minutes` of continuous focus, it sends a notification with the cost estimate: *"You were focused for 42 minutes. Context switches typically cost ~23 minutes to recover."*
+
+Notification methods: `terminal` (bell + print), `desktop` (macOS/Linux), `both`, `none`.
+
+---
 
 ```bash
 devpulse insights --days 7
@@ -235,7 +336,17 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 |---------|-------------|
 | `devpulse toil [--days N]` | List repeated command patterns (default: 14 days) |
 | `devpulse suggest [id]` | Generate an automation script for a toil pattern (requires LLM) |
-| `devpulse insights [--days N]` | LLM-powered productivity insights (default: 7 days) |
+| `devpulse insights [--days N]` | LLM-powered productivity insights, now includes v2 energy + error analysis |
+
+### v2 Intelligence commands
+
+| Command | Description | LLM needed? |
+|---------|-------------|-------------|
+| `devpulse next [project] [--run] [--list] [--dismiss ID]` | Show/run predicted next actions | No |
+| `devpulse recall [query] [--project P] [--days N] [--show-diff ID]` | Search error memory and past fixes | No |
+| `devpulse resume [project] [--open] [--checkout] [--json]` | Restore session context for a project | Optional |
+| `devpulse profile [--regenerate] [--type T] [--days N] [--json]` | Show developer fingerprint | Optional |
+| `devpulse focus [--guard on\|off] [--threshold N]` | Show focus sessions, configure focus guard | No |
 
 ### Data commands
 
@@ -353,6 +464,32 @@ window_tracker = false          # opt-in, macOS/Linux X11 only
 
 [ui]
 color_theme = "auto"
+
+# v2 Intelligence settings
+[v2]
+# Workflow prediction
+prediction_confidence_threshold = 0.3   # minimum confidence to show a prediction
+prediction_learning_days = 30           # days of history to learn from
+auto_execute_predictions = false        # if true, 'devpulse next --run' skips confirmation
+
+# Error memory
+error_retention_days = 180             # how long to keep error records
+auto_record_errors = true              # automatically record non-zero exit codes
+error_similarity_threshold = 0.8       # fuzzy match threshold (reserved)
+
+# Focus guard
+focus_guard_enabled = true
+focus_threshold_minutes = 15           # minimum minutes before counting as focus session
+focus_notification_method = "terminal" # "terminal", "desktop", "both", "none"
+focus_cooldown_minutes = 5             # don't notify again within this window
+
+# Context restorer
+session_gap_minutes = 30               # inactivity gap that ends a session
+auto_snapshot = true                   # auto-capture snapshots on session end
+
+# Developer profile
+profile_auto_generate = true           # regenerate profile weekly
+profile_days = 30                      # days of data to analyze
 ```
 
 ---

@@ -116,6 +116,9 @@ def _run_daemon(config: dict[str, Any]) -> None:
 
     threading.Thread(target=_maintenance, daemon=True, name="maintenance").start()
 
+    # v2: Background intelligence tasks
+    _schedule_v2_tasks(config, stop_event)
+
     stop_event.wait()  # block until signal
 
     logger.info("Stopping collectors…")
@@ -127,6 +130,106 @@ def _run_daemon(config: dict[str, Any]) -> None:
 
     _cleanup()
     logger.info("DevPulse daemon stopped")
+
+
+def _schedule_v2_tasks(config: dict[str, Any], stop_event: threading.Event) -> None:
+    """Start background threads for v2 intelligence features."""
+    v2 = config.get("v2", {})
+
+    # Workflow sequence learner — runs every hour
+    def _learn_sequences() -> None:
+        while not stop_event.is_set():
+            stop_event.wait(3600)
+            if stop_event.is_set():
+                break
+            try:
+                from devpulse.analyzers.workflow_predictor import WorkflowPredictor
+                n = WorkflowPredictor().learn_sequences(
+                    days=v2.get("prediction_learning_days", 30)
+                )
+                if n:
+                    logger.info("Workflow learner: upserted %d sequences", n)
+            except Exception as exc:
+                logger.warning("Workflow learner error: %s", exc)
+
+    threading.Thread(target=_learn_sequences, daemon=True, name="workflow-learner").start()
+
+    # Context restorer — snapshot sessions every 30 min
+    def _snapshot_sessions() -> None:
+        gap = v2.get("session_gap_minutes", 30)
+        if not v2.get("auto_snapshot", True):
+            return
+        while not stop_event.is_set():
+            stop_event.wait(gap * 60)
+            if stop_event.is_set():
+                break
+            try:
+                from devpulse.analyzers.context_restorer import ContextRestorer
+                snapshotted = ContextRestorer().capture_on_gap(gap_minutes=gap)
+                if snapshotted:
+                    logger.info("Captured snapshots for: %s", ", ".join(snapshotted))
+            except Exception as exc:
+                logger.warning("Context restorer error: %s", exc)
+
+    threading.Thread(target=_snapshot_sessions, daemon=True, name="context-restorer").start()
+
+    # Error fix detector — runs every 5 min
+    def _detect_fixes() -> None:
+        while not stop_event.is_set():
+            stop_event.wait(300)
+            if stop_event.is_set():
+                break
+            try:
+                from devpulse.analyzers.error_memory import ErrorMemory
+                n = ErrorMemory().detect_fixes_from_history()
+                if n:
+                    logger.info("Error memory: recorded %d new fixes", n)
+            except Exception as exc:
+                logger.warning("Error fix detector error: %s", exc)
+
+    threading.Thread(target=_detect_fixes, daemon=True, name="error-fix-detector").start()
+
+    # Focus guard — project-switch monitor (runs every 30 seconds)
+    if v2.get("focus_guard_enabled", True):
+        from devpulse.analyzers.focus_guard import FocusGuard
+        guard = FocusGuard(config)
+        _last_project: list[str] = [""]  # mutable container for closure
+
+        def _monitor_focus() -> None:
+            while not stop_event.is_set():
+                stop_event.wait(30)
+                if stop_event.is_set():
+                    break
+                try:
+                    now_str = (
+                        __import__("datetime").datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+                    )
+                    recent = db.query_events(
+                        event_type="shell_cmd",
+                        since=(
+                            __import__("datetime").datetime.now()
+                            - __import__("datetime").timedelta(seconds=60)
+                        ).strftime("%Y-%m-%dT%H:%M:%S"),
+                    )
+                    if not recent:
+                        continue
+                    latest_ev = recent[-1]
+                    project = latest_ev.get("project") or "unknown"
+                    if project == "unknown":
+                        continue
+                    if project != _last_project[0] and _last_project[0]:
+                        ts = latest_ev.get("timestamp", now_str)
+                        guard.on_project_change(_last_project[0], project, ts)
+                    elif not _last_project[0]:
+                        guard.start_session(project, latest_ev.get("timestamp", now_str))
+                    _last_project[0] = project
+                except Exception as exc:
+                    logger.debug("Focus guard error: %s", exc)
+
+        threading.Thread(target=_monitor_focus, daemon=True, name="focus-guard").start()
+        logger.info("Focus guard started")
+
+    logger.info("v2 background tasks scheduled")
 
 
 def start_daemon() -> None:

@@ -84,6 +84,84 @@ def init_db() -> None:
                 top_projects        JSON,
                 generated_at        TEXT
             );
+
+            -- v2: Learned workflow sequences per project
+            CREATE TABLE IF NOT EXISTS workflow_sequences (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                project          TEXT NOT NULL,
+                sequence_hash    TEXT NOT NULL,
+                sequence         JSON NOT NULL,
+                frequency        INTEGER DEFAULT 1,
+                avg_duration_ms  INTEGER,
+                last_seen        TEXT NOT NULL,
+                first_seen       TEXT NOT NULL,
+                confidence       REAL DEFAULT 0.0,
+                is_active        BOOLEAN DEFAULT 1
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_seq_hash ON workflow_sequences(project, sequence_hash);
+            CREATE INDEX IF NOT EXISTS idx_workflow_sequences_project ON workflow_sequences(project);
+
+            -- v2: Error → fix memory
+            CREATE TABLE IF NOT EXISTS error_memory (
+                id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+                error_hash           TEXT NOT NULL,
+                error_pattern        TEXT NOT NULL,
+                error_type           TEXT,
+                project              TEXT,
+                fix_description      TEXT,
+                fix_commands         JSON,
+                fix_diff             TEXT,
+                occurrences          INTEGER DEFAULT 1,
+                first_seen           TEXT NOT NULL,
+                last_seen            TEXT NOT NULL,
+                last_fix_duration_ms INTEGER,
+                resolved             BOOLEAN DEFAULT 0
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_error_memory_hash ON error_memory(error_hash);
+            CREATE INDEX IF NOT EXISTS idx_error_memory_project ON error_memory(project);
+
+            -- v2: Session context snapshots
+            CREATE TABLE IF NOT EXISTS session_snapshots (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                project          TEXT NOT NULL,
+                session_id       TEXT NOT NULL,
+                snapshot_time    TEXT NOT NULL,
+                branch           TEXT,
+                last_file_edited TEXT,
+                last_command     TEXT,
+                last_error       TEXT,
+                unstaged_files   JSON,
+                open_tasks       JSON,
+                notes            TEXT,
+                duration_minutes INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_session_snapshots_project ON session_snapshots(project);
+
+            -- v2: Developer profile / fingerprint
+            CREATE TABLE IF NOT EXISTS developer_profile (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                profile_type  TEXT NOT NULL,
+                data          JSON NOT NULL,
+                generated_at  TEXT NOT NULL,
+                period_start  TEXT NOT NULL,
+                period_end    TEXT NOT NULL,
+                model_used    TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_developer_profile_type ON developer_profile(profile_type);
+
+            -- v2: Focus sessions
+            CREATE TABLE IF NOT EXISTS focus_sessions (
+                id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+                project              TEXT NOT NULL,
+                started_at           TEXT NOT NULL,
+                ended_at             TEXT,
+                duration_minutes     REAL,
+                interruption_count   INTEGER DEFAULT 0,
+                interruption_sources JSON,
+                quality_score        REAL,
+                was_warned           BOOLEAN DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_focus_sessions_project ON focus_sessions(project);
         """)
 
 
@@ -179,8 +257,7 @@ def upsert_toil_pattern(
             (pattern_hash,),
         ).fetchone()
         if existing:
-            # Keep the higher observed count so re-runs don't lose data
-            new_count = max(existing["count"], count)
+            new_count = existing["count"] + count
             conn.execute(
                 "UPDATE toil_patterns SET count = ?, last_seen = ? WHERE pattern_hash = ?",
                 (new_count, ts, pattern_hash),
@@ -286,3 +363,377 @@ def cleanup_old_events(days: int = 90) -> int:
     with _write_lock, _get_conn() as conn:
         cur = conn.execute("DELETE FROM events WHERE timestamp < ?", (cutoff,))
         return cur.rowcount
+
+
+# ---------------------------------------------------------------------------
+# v2: Workflow sequence helpers
+# ---------------------------------------------------------------------------
+
+def upsert_workflow_sequence(
+    project: str,
+    sequence_hash: str,
+    sequence: list[str],
+    frequency: int = 1,
+    now: str | None = None,
+) -> int:
+    """Upsert a workflow sequence, setting frequency. Returns rowid."""
+    ts = now or datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    with _write_lock, _get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id, frequency FROM workflow_sequences WHERE project=? AND sequence_hash=?",
+            (project, sequence_hash),
+        ).fetchone()
+        if existing:
+            new_freq = max(existing["frequency"], frequency)
+            confidence = min(1.0, new_freq / 20.0)
+            conn.execute(
+                "UPDATE workflow_sequences SET frequency=?, confidence=?, last_seen=? WHERE id=?",
+                (new_freq, confidence, ts, existing["id"]),
+            )
+            return existing["id"]
+        else:
+            confidence = min(1.0, frequency / 20.0)
+            cur = conn.execute(
+                """INSERT INTO workflow_sequences
+                   (project, sequence_hash, sequence, frequency, confidence, first_seen, last_seen)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (project, sequence_hash, json.dumps(sequence), frequency, confidence, ts, ts),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+
+def get_workflow_sequences(
+    project: str | None = None,
+    min_confidence: float = 0.0,
+    active_only: bool = True,
+) -> list[dict[str, Any]]:
+    clauses = []
+    params: list[Any] = []
+    if project:
+        clauses.append("project=?")
+        params.append(project)
+    if active_only:
+        clauses.append("is_active=1")
+    if min_confidence > 0:
+        clauses.append("confidence>=?")
+        params.append(min_confidence)
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    with _get_conn(readonly=True) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM workflow_sequences {where} ORDER BY frequency DESC",
+            params,
+        ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        try:
+            d["sequence"] = json.loads(d["sequence"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+        result.append(d)
+    return result
+
+
+def dismiss_workflow_sequence(seq_id: int) -> None:
+    with _write_lock, _get_conn() as conn:
+        conn.execute("UPDATE workflow_sequences SET is_active=0 WHERE id=?", (seq_id,))
+
+
+# ---------------------------------------------------------------------------
+# v2: Error memory helpers
+# ---------------------------------------------------------------------------
+
+def upsert_error_memory(
+    error_hash: str,
+    error_pattern: str,
+    project: str | None = None,
+    error_type: str | None = None,
+    now: str | None = None,
+) -> int:
+    """Insert or increment an error occurrence. Returns error_memory id."""
+    ts = now or datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    with _write_lock, _get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id, occurrences FROM error_memory WHERE error_hash=?",
+            (error_hash,),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE error_memory SET occurrences=occurrences+1, last_seen=? WHERE id=?",
+                (ts, existing["id"]),
+            )
+            return existing["id"]
+        else:
+            cur = conn.execute(
+                """INSERT INTO error_memory
+                   (error_hash, error_pattern, project, error_type, first_seen, last_seen)
+                   VALUES (?,?,?,?,?,?)""",
+                (error_hash, error_pattern, project, error_type, ts, ts),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+
+def update_error_fix(
+    error_id: int,
+    fix_commands: list[str],
+    fix_description: str | None = None,
+    fix_diff: str | None = None,
+    fix_duration_ms: int | None = None,
+) -> None:
+    with _write_lock, _get_conn() as conn:
+        conn.execute(
+            """UPDATE error_memory
+               SET fix_commands=?, fix_description=?, fix_diff=?,
+                   last_fix_duration_ms=?, resolved=1
+               WHERE id=?""",
+            (
+                json.dumps(fix_commands),
+                fix_description,
+                fix_diff,
+                fix_duration_ms,
+                error_id,
+            ),
+        )
+
+
+def get_error_memory_by_hash(error_hash: str) -> dict[str, Any] | None:
+    with _get_conn(readonly=True) as conn:
+        row = conn.execute(
+            "SELECT * FROM error_memory WHERE error_hash=?", (error_hash,)
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    try:
+        d["fix_commands"] = json.loads(d["fix_commands"]) if d["fix_commands"] else []
+    except (json.JSONDecodeError, TypeError):
+        d["fix_commands"] = []
+    return d
+
+
+def get_frequent_errors(
+    project: str | None = None,
+    days: int = 30,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
+    clauses = ["last_seen >= ?"]
+    params: list[Any] = [since]
+    if project:
+        clauses.append("project=?")
+        params.append(project)
+    where = "WHERE " + " AND ".join(clauses)
+    params.append(limit)
+    with _get_conn(readonly=True) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM error_memory {where} ORDER BY occurrences DESC LIMIT ?",
+            params,
+        ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        try:
+            d["fix_commands"] = json.loads(d["fix_commands"]) if d["fix_commands"] else []
+        except (json.JSONDecodeError, TypeError):
+            d["fix_commands"] = []
+        result.append(d)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# v2: Session snapshot helpers
+# ---------------------------------------------------------------------------
+
+def insert_session_snapshot(
+    project: str,
+    session_id: str,
+    branch: str | None = None,
+    last_file_edited: str | None = None,
+    last_command: str | None = None,
+    last_error: str | None = None,
+    unstaged_files: list[str] | None = None,
+    open_tasks: list[str] | None = None,
+    notes: str | None = None,
+    duration_minutes: int | None = None,
+    now: str | None = None,
+) -> int:
+    ts = now or datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    with _write_lock, _get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO session_snapshots
+               (project, session_id, snapshot_time, branch, last_file_edited,
+                last_command, last_error, unstaged_files, open_tasks, notes, duration_minutes)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                project, session_id, ts, branch, last_file_edited,
+                last_command, last_error,
+                json.dumps(unstaged_files or []),
+                json.dumps(open_tasks or []),
+                notes, duration_minutes,
+            ),
+        )
+        return cur.lastrowid  # type: ignore[return-value]
+
+
+def get_latest_snapshot(project: str) -> dict[str, Any] | None:
+    with _get_conn(readonly=True) as conn:
+        row = conn.execute(
+            "SELECT * FROM session_snapshots WHERE project=? ORDER BY snapshot_time DESC LIMIT 1",
+            (project,),
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    for key in ("unstaged_files", "open_tasks"):
+        try:
+            d[key] = json.loads(d[key]) if d[key] else []
+        except (json.JSONDecodeError, TypeError):
+            d[key] = []
+    return d
+
+
+def get_session_history(project: str, limit: int = 10) -> list[dict[str, Any]]:
+    with _get_conn(readonly=True) as conn:
+        rows = conn.execute(
+            "SELECT * FROM session_snapshots WHERE project=? ORDER BY snapshot_time DESC LIMIT ?",
+            (project, limit),
+        ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        for key in ("unstaged_files", "open_tasks"):
+            try:
+                d[key] = json.loads(d[key]) if d[key] else []
+            except (json.JSONDecodeError, TypeError):
+                d[key] = []
+        result.append(d)
+    return result
+
+
+def get_all_snapshot_projects() -> list[str]:
+    """Return distinct projects that have at least one session snapshot."""
+    with _get_conn(readonly=True) as conn:
+        rows = conn.execute(
+            """SELECT project, MAX(snapshot_time) as last_seen
+               FROM session_snapshots GROUP BY project ORDER BY last_seen DESC"""
+        ).fetchall()
+    return [row["project"] for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# v2: Developer profile helpers
+# ---------------------------------------------------------------------------
+
+def insert_developer_profile(
+    profile_type: str,
+    data: dict[str, Any],
+    period_start: str,
+    period_end: str,
+    model_used: str | None = None,
+    now: str | None = None,
+) -> int:
+    ts = now or datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    with _write_lock, _get_conn() as conn:
+        cur = conn.execute(
+            """INSERT INTO developer_profile
+               (profile_type, data, generated_at, period_start, period_end, model_used)
+               VALUES (?,?,?,?,?,?)""",
+            (profile_type, json.dumps(data), ts, period_start, period_end, model_used),
+        )
+        return cur.lastrowid  # type: ignore[return-value]
+
+
+def get_latest_profile(profile_type: str | None = None) -> dict[str, Any] | None:
+    clause = "WHERE profile_type=?" if profile_type else ""
+    params = [profile_type] if profile_type else []
+    with _get_conn(readonly=True) as conn:
+        row = conn.execute(
+            f"SELECT * FROM developer_profile {clause} ORDER BY generated_at DESC LIMIT 1",
+            params,
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    try:
+        d["data"] = json.loads(d["data"])
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return d
+
+
+def get_all_profiles(profile_type: str | None = None) -> list[dict[str, Any]]:
+    clause = "WHERE profile_type=?" if profile_type else ""
+    params: list[Any] = [profile_type] if profile_type else []
+    with _get_conn(readonly=True) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM developer_profile {clause} ORDER BY generated_at DESC",
+            params,
+        ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        try:
+            d["data"] = json.loads(d["data"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+        result.append(d)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# v2: Focus session helpers
+# ---------------------------------------------------------------------------
+
+def insert_focus_session(project: str, started_at: str) -> int:
+    with _write_lock, _get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO focus_sessions (project, started_at) VALUES (?,?)",
+            (project, started_at),
+        )
+        return cur.lastrowid  # type: ignore[return-value]
+
+
+def close_focus_session(
+    session_id: int,
+    ended_at: str,
+    duration_minutes: float,
+    interruption_count: int,
+    interruption_sources: list[str],
+    quality_score: float,
+    was_warned: bool = False,
+) -> None:
+    with _write_lock, _get_conn() as conn:
+        conn.execute(
+            """UPDATE focus_sessions
+               SET ended_at=?, duration_minutes=?, interruption_count=?,
+                   interruption_sources=?, quality_score=?, was_warned=?
+               WHERE id=?""",
+            (
+                ended_at, duration_minutes, interruption_count,
+                json.dumps(interruption_sources), quality_score, was_warned,
+                session_id,
+            ),
+        )
+
+
+def get_focus_sessions(since: str, project: str | None = None) -> list[dict[str, Any]]:
+    clauses = ["started_at >= ?"]
+    params: list[Any] = [since]
+    if project:
+        clauses.append("project=?")
+        params.append(project)
+    where = "WHERE " + " AND ".join(clauses)
+    with _get_conn(readonly=True) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM focus_sessions {where} ORDER BY started_at ASC",
+            params,
+        ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        try:
+            d["interruption_sources"] = json.loads(d["interruption_sources"]) if d["interruption_sources"] else []
+        except (json.JSONDecodeError, TypeError):
+            d["interruption_sources"] = []
+        result.append(d)
+    return result

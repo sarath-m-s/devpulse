@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timedelta
+from collections import Counter
 from typing import Any
 
 from rich import box
@@ -180,6 +181,137 @@ def render_today(width: int | None = None) -> None:
         console.print(
             Panel(block_table, title="[bold]Deep work blocks[/bold]", box=box.ROUNDED)
         )
+
+    # v2: Focus sessions panel
+    _render_v2_focus_panel()
+
+    # v2: Predicted next action panel
+    _render_v2_prediction_panel(today_str)
+
+    # v2: Recurring errors panel
+    _render_v2_errors_panel()
+
+
+def _render_v2_focus_panel() -> None:
+    """Render v2 focus sessions if any exist today."""
+    try:
+        from devpulse import db as _db
+        today_str = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).strftime(
+            "%Y-%m-%dT%H:%M:%S"
+        )
+        sessions = _db.get_focus_sessions(since=today_str)
+        if not sessions:
+            return
+
+        focus_table = Table(show_header=False, box=None, padding=(0, 1))
+        focus_table.add_column("Time", style="dim", min_width=14)
+        focus_table.add_column("Project", style="bold cyan", min_width=14)
+        focus_table.add_column("Duration", style="green", min_width=8)
+        focus_table.add_column("Score")
+
+        for s in sessions[:6]:
+            start = (s.get("started_at") or "")[:16].replace("T", " ")
+            end = (s.get("ended_at") or "now")[:16].replace("T", " ")
+            dur = s.get("duration_minutes") or 0
+            score = s.get("quality_score") or 0
+            score_color = "green" if score >= 70 else "yellow" if score >= 40 else "red"
+            bar_len = round(score / 10)
+            bar = "█" * bar_len + "░" * (10 - bar_len)
+            active_str = " [bold green]active 🟢[/bold green]" if not s.get("ended_at") else ""
+            focus_table.add_row(
+                f"{start}–{end}",
+                s.get("project", "?")[:14],
+                _fmt_duration(dur),
+                f"[{score_color}]{bar}[/{score_color}]{active_str}",
+            )
+
+        console.print(
+            Panel(focus_table, title="[bold]🎯 Focus sessions[/bold]", border_style="blue", box=box.ROUNDED)
+        )
+    except Exception:
+        pass
+
+
+def _render_v2_prediction_panel(today_str: str) -> None:
+    """Render the top predicted next action for the most active project."""
+    try:
+        from devpulse import db as _db
+        from devpulse.analyzers.workflow_predictor import WorkflowPredictor
+
+        # Find most active project today
+        from devpulse.analyzers.time_tracker import compute_time_per_project
+        time_data = compute_time_per_project(since=today_str)
+        if not time_data:
+            return
+        top_project = max(time_data, key=lambda p: time_data[p]["total_minutes"])
+
+        recent_events = _db.query_events(
+            event_type="shell_cmd",
+            project=top_project,
+            since=(datetime.now() - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S"),
+        )
+        recent_cmds = [e["data"].get("cmd", "") for e in recent_events[-3:] if e.get("data")]
+        if not recent_cmds:
+            return
+
+        predictor = WorkflowPredictor()
+        predictions = predictor.predict_next(top_project, recent_cmds, top_k=1)
+        if not predictions:
+            return
+
+        pred = predictions[0]
+        cmds_str = " && ".join(pred["commands"][:4])
+        if len(pred["commands"]) > 4:
+            cmds_str += " …"
+        conf_pct = f"{pred['confidence']*100:.0f}%"
+
+        from rich.text import Text
+        content = Text()
+        content.append(f"  {top_project}: ", style="bold cyan")
+        content.append(cmds_str[:65], style="white")
+        content.append(f"  ({conf_pct} confidence)", style="dim")
+        content.append("\n  Run: ", style="dim")
+        content.append(f"devpulse next {top_project}", style="cyan")
+
+        console.print(
+            Panel(content, title="[bold]⚡ Predicted next[/bold]", border_style="yellow", box=box.ROUNDED)
+        )
+    except Exception:
+        pass
+
+
+def _render_v2_errors_panel() -> None:
+    """Render recurring errors panel if any exist."""
+    try:
+        from devpulse.analyzers.error_memory import ErrorMemory
+        errors = ErrorMemory().get_frequent_errors(days=7, limit=4)
+        recurring = [e for e in errors if e.get("occurrences", 1) >= 2]
+        if not recurring:
+            return
+
+        error_table = Table(show_header=False, box=None, padding=(0, 1))
+        error_table.add_column("Pattern", style="yellow", min_width=35)
+        error_table.add_column("Count", justify="right", style="red", min_width=4)
+        error_table.add_column("Fix")
+
+        for e in recurring[:4]:
+            pattern = e.get("error_pattern", "?")[:35]
+            count = f"×{e.get('occurrences', 1)}"
+            fix = e.get("fix_description") or ("[dim]no fix recorded[/dim]")
+            if len(fix) > 45:
+                fix = fix[:42] + "…"
+            error_table.add_row(pattern, count, fix)
+
+        from rich.text import Text
+        hint = Text("  Run: devpulse recall  to search error history", style="dim italic")
+        from rich.console import Group
+        content = Group(error_table, hint)
+
+        console.print(
+            Panel(content, title="[bold]🔁 Recurring errors[/bold]", border_style="red", box=box.ROUNDED)
+        )
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
