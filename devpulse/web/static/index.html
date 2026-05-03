@@ -1,591 +1,1005 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DevPulse</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-  tailwind.config = { darkMode: 'class' }
-</script>
-<style>
-  body { background: #0f1117; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
-  .card { background: #1a1f2e; border: 1px solid #2d3548; border-radius: 12px; }
-  .sidebar-item { transition: all 0.15s; border-radius: 8px; cursor: pointer; }
-  .sidebar-item:hover { background: #2d3548; }
-  .sidebar-item.active { background: #3b4fd4; color: white; }
-  .stat-card { background: linear-gradient(135deg, #1a1f2e, #1e2538); border: 1px solid #2d3548; border-radius: 12px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
-  .progress-bar { height: 6px; border-radius: 3px; background: #2d3548; overflow: hidden; }
-  .progress-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: #0f1117; }
-  ::-webkit-scrollbar-thumb { background: #2d3548; border-radius: 2px; }
-  .pulse { animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.5 } }
-  .fade-in { animation: fadeIn 0.3s ease; }
-  @keyframes fadeIn { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:none } }
-  .cmd-row:hover { background: #1e2538; }
-  .toil-row:hover { background: #1e2538; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DevPulse — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --canvas:          #010102;
+      --surface-1:       #0d0e11;
+      --surface-2:       #141519;
+      --surface-3:       #1b1c21;
+      --surface-4:       #22232a;
+      --hairline:        #23252a;
+      --hairline-strong: #2e3038;
+      --primary:         #5e6ad2;
+      --primary-hover:   #828fff;
+      --ink:             #f7f8f8;
+      --ink-muted:       #d0d6e0;
+      --ink-subtle:      #8a8f98;
+      --ink-tertiary:    #62666d;
+      --success:         #27a644;
+      --warn:            #d97706;
+      --danger:          #e87b5a;
+      --font: 'Inter', -apple-system, system-ui, sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, monospace;
+      --r-xs:4px; --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px; --r-pill:9999px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body { background: var(--canvas); color: var(--ink); font-family: var(--font); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; }
+
+    .topbar { height: 48px; background: var(--surface-1); border-bottom: 1px solid var(--hairline); display: flex; align-items: center; padding: 0 20px; gap: 16px; flex-shrink: 0; z-index: 50; }
+    .topbar-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
+    .logo-mark { width: 22px; height: 22px; background: var(--primary); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+    .topbar-name { font-size: 14px; font-weight: 600; letter-spacing: -0.3px; }
+    .topbar-sep { width: 1px; height: 18px; background: var(--hairline-strong); }
+    .topbar-addr { font-family: var(--mono); font-size: 11px; color: var(--ink-tertiary); background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 3px 8px; }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .status-pill { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--success); background: rgba(39,166,68,0.1); border: 1px solid rgba(39,166,68,0.2); border-radius: var(--r-pill); padding: 3px 10px; }
+    .status-pill.stopped { color: var(--danger); background: rgba(232,123,90,0.1); border-color: rgba(232,123,90,0.2); }
+    .status-dot { width: 6px; height: 6px; background: var(--success); border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+    .status-pill.stopped .status-dot { background: var(--danger); animation: none; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+    .topbar-date { font-size: 12px; color: var(--ink-tertiary); }
+
+    .layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+    .sidebar { width: 200px; flex-shrink: 0; background: var(--surface-1); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; overflow-y: auto; padding: 12px 8px; gap: 2px; }
+    .nav-label { font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--ink-tertiary); padding: 8px 8px 4px; }
+    .nav-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-md); color: var(--ink-subtle); font-size: 13px; font-weight: 400; cursor: pointer; transition: background 0.12s, color 0.12s; user-select: none; text-decoration: none; }
+    .nav-item:hover { background: var(--surface-2); color: var(--ink-muted); }
+    .nav-item.active { background: var(--surface-3); color: var(--ink); }
+    .nav-item svg { flex-shrink: 0; opacity: 0.7; }
+    .nav-item.active svg { opacity: 1; }
+    .nav-item .badge { margin-left: auto; font-size: 10px; font-weight: 600; background: var(--primary); color: #fff; border-radius: var(--r-pill); padding: 1px 6px; }
+
+    .main { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+    .view { display: none; flex-direction: column; gap: 16px; }
+    .view.active { display: flex; animation: fadeUp 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; }
+    .page-title { font-size: 18px; font-weight: 600; letter-spacing: -0.4px; color: var(--ink); }
+    .page-sub { font-size: 13px; color: var(--ink-subtle); margin-top: 2px; }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+
+    .btn { font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: var(--r-md); cursor: pointer; border: 1px solid var(--hairline); background: var(--surface-2); color: var(--ink-muted); transition: background 0.12s, border-color 0.12s; display: flex; align-items: center; gap: 6px; font-family: var(--font); }
+    .btn:hover { background: var(--surface-3); border-color: var(--hairline-strong); color: var(--ink); }
+    .btn-accent { background: var(--primary); color: #fff; border-color: transparent; }
+    .btn-accent:hover { background: var(--primary-hover); color: #fff; }
+
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .stats-row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .stat-card { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); padding: 14px 16px; position: relative; overflow: hidden; transition: border-color 0.2s; }
+    .stat-card:hover { border-color: var(--hairline-strong); }
+    .stat-label { font-size: 11px; font-weight: 500; color: var(--ink-subtle); letter-spacing: 0.2px; margin-bottom: 6px; }
+    .stat-value { font-size: 24px; font-weight: 600; letter-spacing: -0.8px; color: var(--ink); line-height: 1; margin-bottom: 4px; }
+    .stat-delta { font-size: 11px; color: var(--ink-tertiary); }
+    .stat-delta.up { color: var(--success); }
+    .stat-delta.down { color: var(--danger); }
+    .stat-accent-bar { position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--primary); opacity: 0.5; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+    .panel { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden; }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+    .panel-title { font-size: 13px; font-weight: 600; letter-spacing: -0.2px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+    .panel-action { font-size: 11px; color: var(--primary); cursor: pointer; transition: color 0.12s; }
+    .panel-action:hover { color: var(--primary-hover); }
+    .panel-body { padding: 16px; }
+    .panel-body-sm { padding: 12px 16px; }
+
+    .tag { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: var(--r-pill); }
+    .tag-success { background: rgba(39,166,68,0.1); color: var(--success); border: 1px solid rgba(39,166,68,0.2); }
+    .tag-warn    { background: rgba(217,119,6,0.1);  color: var(--warn);    border: 1px solid rgba(217,119,6,0.2); }
+    .tag-danger  { background: rgba(232,123,90,0.1); color: var(--danger);  border: 1px solid rgba(232,123,90,0.2); }
+    .tag-primary { background: rgba(94,106,210,0.1); color: var(--primary); border: 1px solid rgba(94,106,210,0.2); }
+    .tag-muted   { background: var(--surface-3); color: var(--ink-subtle); border: 1px solid var(--hairline); }
+
+    .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+    .bar-row { display: grid; grid-template-columns: 100px 1fr 52px; align-items: center; gap: 10px; }
+    .bar-label { font-size: 12px; font-weight: 500; color: var(--ink-muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-track { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
+    .bar-val { font-size: 12px; color: var(--ink-subtle); text-align: right; font-family: var(--mono); }
+
+    .timeline { display: flex; flex-direction: column; gap: 6px; }
+    .timeline-hours { display: flex; margin-bottom: 4px; }
+    .hour-label { flex: 1; font-size: 10px; color: var(--ink-tertiary); font-family: var(--mono); text-align: center; }
+    .timeline-row { display: flex; align-items: center; gap: 8px; }
+    .timeline-proj { width: 84px; font-size: 11px; font-family: var(--mono); color: var(--ink-subtle); flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .timeline-blocks { flex: 1; display: flex; height: 18px; gap: 1px; }
+    .tblock { height: 100%; border-radius: 2px; flex-shrink: 0; }
+
+    .switch-chart { display: flex; align-items: flex-end; gap: 3px; height: 56px; }
+    .switch-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; height: 100%; justify-content: flex-end; }
+    .switch-bar { width: 100%; border-radius: 2px 2px 0 0; min-height: 2px; }
+    .switch-bar.high { background: var(--danger); }
+    .switch-bar.med  { background: var(--warn); opacity: 0.8; }
+    .switch-bar.low  { background: var(--success); opacity: 0.8; }
+    .switch-bar.none { background: var(--surface-3); }
+    .switch-day { font-size: 9px; color: var(--ink-tertiary); font-family: var(--mono); }
+
+    .toil-list { display: flex; flex-direction: column; }
+    .toil-item { padding: 12px 0; border-bottom: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 6px; }
+    .toil-item:last-child { border-bottom: none; }
+    .toil-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .toil-cmd { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-xs); padding: 3px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .toil-freq { font-size: 11px; font-family: var(--mono); color: var(--ink-tertiary); flex-shrink: 0; }
+    .toil-body { display: flex; align-items: center; gap: 8px; }
+    .toil-suggest { font-size: 11px; color: var(--success); font-family: var(--mono); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .toil-apply { flex-shrink: 0; font-size: 11px; font-weight: 500; color: var(--primary); cursor: pointer; padding: 3px 10px; border-radius: var(--r-sm); border: 1px solid rgba(94,106,210,0.3); background: rgba(94,106,210,0.06); transition: background 0.12s, border-color 0.12s; font-family: var(--font); }
+    .toil-apply:hover:not(:disabled) { background: rgba(94,106,210,0.14); border-color: var(--primary); }
+    .toil-apply:disabled { opacity: 0.6; cursor: default; }
+    .toil-meta { font-size: 11px; color: var(--ink-tertiary); }
+
+    .activity-list { display: flex; flex-direction: column; }
+    .activity-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-time { font-family: var(--mono); font-size: 10px; color: var(--ink-tertiary); width: 44px; flex-shrink: 0; }
+    .activity-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .activity-text { font-size: 12px; color: var(--ink-subtle); flex: 1; }
+    .activity-text code { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); background: var(--surface-3); border-radius: 3px; padding: 0 4px; }
+    .activity-proj { font-family: var(--mono); font-size: 10px; color: var(--ink-tertiary); background: var(--surface-3); border-radius: var(--r-xs); padding: 1px 6px; flex-shrink: 0; }
+
+    .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .week-day { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .week-bar-wrap { width: 100%; height: 40px; display: flex; align-items: flex-end; }
+    .week-bar { width: 100%; border-radius: 2px 2px 0 0; min-height: 3px; }
+    .week-bar.today { background: var(--primary); opacity: 0.8; }
+    .week-bar.past  { background: var(--surface-4); }
+    .week-bar.future{ background: var(--surface-3); opacity: 0.3; }
+    .week-label { font-size: 9px; color: var(--ink-tertiary); font-family: var(--mono); }
+    .week-hours { font-size: 9px; color: var(--ink-subtle); font-family: var(--mono); }
+
+    .donut-wrap { display: flex; align-items: center; gap: 16px; }
+    .donut-legend { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-muted); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+    .legend-pct { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-subtle); }
+
+    .insights-list { display: flex; flex-direction: column; gap: 8px; }
+    .insight-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-md); }
+    .insight-icon { width: 28px; height: 28px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .insight-text { font-size: 12px; color: var(--ink-muted); line-height: 1.6; }
+    .insight-text strong { color: var(--ink); font-weight: 500; }
+
+    .proj-table { width: 100%; border-collapse: collapse; }
+    .proj-table th { font-size: 10px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; color: var(--ink-tertiary); padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--hairline); }
+    .proj-table td { padding: 10px 12px; border-bottom: 1px solid var(--hairline); font-size: 12px; color: var(--ink-muted); vertical-align: middle; }
+    .proj-table tr:last-child td { border-bottom: none; }
+    .proj-table tr:hover td { background: var(--surface-2); }
+    .proj-name { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink); }
+    .proj-bar-cell { width: 140px; }
+    .proj-mini-bar { height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; margin-top: 3px; }
+    .proj-mini-fill { height: 100%; border-radius: 2px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
+
+    .config-section { display: flex; flex-direction: column; gap: 2px; }
+    .config-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+    .config-row:last-child { border-bottom: none; }
+    .config-key { font-size: 13px; color: var(--ink); font-weight: 500; }
+    .config-desc { font-size: 11px; color: var(--ink-tertiary); margin-top: 2px; }
+    .config-val { font-family: var(--mono); font-size: 12px; color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 10px; }
+    .config-select { font-family: var(--mono); font-size: 12px; color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 10px; cursor: pointer; appearance: none; }
+    .toggle { width: 32px; height: 18px; border-radius: var(--r-pill); background: var(--surface-3); border: 1px solid var(--hairline); cursor: pointer; position: relative; transition: background 0.15s; flex-shrink: 0; }
+    .toggle.on { background: var(--primary); border-color: var(--primary); }
+    .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--ink-subtle); transition: transform 0.15s, background 0.15s; }
+    .toggle.on::after { transform: translateX(14px); background: #fff; }
+
+    .heatmap-grid { display: grid; grid-template-columns: 40px repeat(10, 1fr); gap: 2px; }
+    .heatmap-cell { height: 20px; border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-family: var(--mono); }
+    .heatmap-label { font-size: 10px; color: var(--ink-tertiary); font-family: var(--mono); display: flex; align-items: center; }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--surface-4); }
+
+    .divider { height: 1px; background: var(--hairline); margin: 4px 0; }
+    .loading-text { color: var(--ink-tertiary); font-size: 12px; padding: 20px; text-align: center; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--hairline-strong); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
-<body class="min-h-screen flex">
+<body>
 
-<!-- Sidebar -->
-<aside class="w-56 flex-shrink-0 flex flex-col p-4 border-r border-gray-800" style="background:#13172a">
-  <div class="mb-8 mt-2 px-2">
-    <div class="flex items-center gap-2">
-      <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold" style="background:#3b4fd4">D</div>
-      <span class="font-bold text-white text-lg">DevPulse</span>
+<header class="topbar">
+  <a href="/" class="topbar-logo">
+    <div class="logo-mark">
+      <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+        <path d="M2 7C2 4.24 4.24 2 7 2s5 2.24 5 5-2.24 5-5 5-5-2.24-5-5z" stroke="#fff" stroke-width="1.4" fill="none"/>
+        <path d="M7 4v3l2 1.5" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </div>
-    <div id="daemon-badge" class="mt-2 ml-1"></div>
+    <span class="topbar-name">DevPulse</span>
+  </a>
+  <div class="topbar-sep"></div>
+  <span class="topbar-addr" id="topbar-addr">localhost:8765</span>
+  <div class="topbar-right">
+    <div class="status-pill" id="status-pill"><span class="status-dot"></span><span id="status-text">checking…</span></div>
+    <span class="topbar-date" id="topbar-date"></span>
   </div>
-  <nav class="flex flex-col gap-1 flex-1">
-    <button class="sidebar-item active px-3 py-2 text-left text-sm flex items-center gap-2" data-page="dashboard">
-      <span>📊</span> Dashboard
-    </button>
-    <button class="sidebar-item px-3 py-2 text-left text-sm flex items-center gap-2" data-page="projects">
-      <span>📁</span> Projects
-    </button>
-    <button class="sidebar-item px-3 py-2 text-left text-sm flex items-center gap-2" data-page="toil">
-      <span>🔄</span> Toil
-    </button>
-    <button class="sidebar-item px-3 py-2 text-left text-sm flex items-center gap-2" data-page="activity">
-      <span>⚡</span> Activity
-    </button>
-    <button class="sidebar-item px-3 py-2 text-left text-sm flex items-center gap-2" data-page="focus">
-      <span>🎯</span> Focus
-    </button>
-  </nav>
-  <div class="mt-4">
-    <button onclick="refreshAll()" class="w-full px-3 py-2 text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-2 rounded-lg hover:bg-gray-800">
-      <span id="refresh-icon">↻</span> Refresh
-    </button>
-    <div id="last-updated" class="text-xs text-gray-600 px-3 mt-1"></div>
-  </div>
-</aside>
+</header>
 
-<!-- Main content -->
-<main class="flex-1 overflow-y-auto p-6">
-  <div id="page-dashboard" class="fade-in"></div>
-  <div id="page-projects" class="fade-in hidden"></div>
-  <div id="page-toil" class="fade-in hidden"></div>
-  <div id="page-activity" class="fade-in hidden"></div>
-  <div id="page-focus" class="fade-in hidden"></div>
-</main>
+<div class="layout">
+  <nav class="sidebar">
+    <span class="nav-label">Overview</span>
+    <a class="nav-item active" data-view="today" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4.5V7l1.5 1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Today
+    </a>
+    <a class="nav-item" data-view="week" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="3" width="11" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 1.5v3M9 1.5v3M1.5 6.5h11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      This week
+    </a>
+    <a class="nav-item" data-view="projects" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5V5l4-3 4 3v5.5" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><rect x="5" y="7.5" width="4" height="3" rx="0.5" stroke="currentColor" stroke-width="1.3"/></svg>
+      Projects
+    </a>
+    <span class="nav-label" style="margin-top:8px">Analysis</span>
+    <a class="nav-item" data-view="toil" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v2M7 10v2M2 7H4M10 7h2M3.64 3.64l1.42 1.42M8.94 8.94l1.42 1.42M3.64 10.36l1.42-1.42M8.94 5.06l1.42-1.42" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Toil
+      <span class="badge" id="toil-badge"></span>
+    </a>
+    <a class="nav-item" data-view="focus" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h1.5M10.5 7H12M7 2v1.5M7 10.5V12M4.4 4.4l1.05 1.05M8.55 8.55l1.05 1.05M8.55 5.45 7.5 6.5M4.4 9.6l1.05-1.05" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+      Focus
+    </a>
+    <a class="nav-item" data-view="insights" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5l3-4 2.5 2 3-5L12 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Insights
+    </a>
+    <span class="nav-label" style="margin-top:8px">Settings</span>
+    <a class="nav-item" data-view="config" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="1.8" stroke="currentColor" stroke-width="1.3"/><path d="M7 1.5v1.2M7 11.3v1.2M1.5 7h1.2M11.3 7h1.2M3.2 3.2l.85.85M9.95 9.95l.85.85M3.2 10.8l.85-.85M9.95 4.05l.85-.85" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Config
+    </a>
+  </nav>
+
+  <main class="main" id="main">
+    <div class="view active" id="view-today"><div class="loading-text"><span class="spinner"></span> Loading…</div></div>
+    <div class="view" id="view-week"></div>
+    <div class="view" id="view-projects"></div>
+    <div class="view" id="view-toil"></div>
+    <div class="view" id="view-focus"></div>
+    <div class="view" id="view-insights"></div>
+    <div class="view" id="view-config"></div>
+  </main>
+</div>
 
 <script>
-// ─── State ───────────────────────────────────────────────────────────────────
-const state = { today: null, week: null, projects: null, toil: null, events: null, focus: null, status: null };
-let charts = {};
-let currentPage = 'dashboard';
+const COLORS = ['#5e6ad2','#fbbf24','#4ade80','#f472b6','#22d3ee','#fb923c','#a78bfa','#34d399'];
+const state = {};
 
-// ─── API ─────────────────────────────────────────────────────────────────────
-async function api(path) {
-  const r = await fetch(path);
+function fmtDur(m) {
+  if (m == null || m === 0) return '0m';
+  const h = Math.floor(m / 60), mi = Math.round(m % 60);
+  return h > 0 ? `${h}h ${String(mi).padStart(2,'0')}m` : `${mi}m`;
+}
+function fmtHours(m) {
+  const h = Math.floor(m / 60), mi = Math.round(m % 60);
+  return h > 0 ? `${h}h ${String(mi).padStart(2,'0')}m` : `${mi}m`;
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
   if (!r.ok) throw new Error(`${r.status}`);
   return r.json();
 }
 
-// ─── Navigation ──────────────────────────────────────────────────────────────
-document.querySelectorAll('[data-page]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('[data-page]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('[id^="page-"]').forEach(p => p.classList.add('hidden'));
-    const page = btn.dataset.page;
-    currentPage = page;
-    document.getElementById('page-' + page).classList.remove('hidden');
-    renderPage(page);
+// ── SVG donut ───────────────────────────────────────────────────
+function makeDonut(svgEl, data, cx, cy, r, strokeW) {
+  svgEl.innerHTML = '';
+  const circ = 2 * Math.PI * r;
+  let offset = 0;
+  data.forEach(d => {
+    const dash = d.pct * circ;
+    const gap = circ - dash;
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r);
+    c.setAttribute('fill', 'none');
+    c.setAttribute('stroke', d.color);
+    c.setAttribute('stroke-width', strokeW);
+    c.setAttribute('stroke-dasharray', `${dash} ${gap}`);
+    c.setAttribute('stroke-dashoffset', -(offset * circ));
+    c.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+    c.setAttribute('opacity', '0.85');
+    svgEl.appendChild(c);
+    offset += d.pct;
   });
+}
+
+function makeSwitchChart(el, data, maxH) {
+  el.innerHTML = '';
+  const maxV = Math.max(...data.map(s => s.v || 0), 1);
+  data.forEach(s => {
+    el.innerHTML += `<div class="switch-bar-wrap"><div class="switch-bar ${s.cls}" style="height:${s.v > 0 ? Math.max(s.v / maxV * maxH, 4) : 2}px"></div><span class="switch-day">${s.d}</span></div>`;
+  });
+}
+
+function makeActivityList(el, items) {
+  el.innerHTML = '';
+  items.forEach(a => {
+    el.innerHTML += `<div class="activity-item"><span class="activity-time">${esc(a.time)}</span><span class="activity-dot" style="background:${a.color}"></span><span class="activity-text">${a.text}</span><span class="activity-proj">${esc(a.proj)}</span></div>`;
+  });
+}
+
+// ── TODAY ────────────────────────────────────────────────────────
+async function renderToday() {
+  const el = document.getElementById('view-today');
+  try {
+    const [t, events] = await Promise.all([
+      api('/api/stats/today'),
+      api('/api/events?limit=10'),
+    ]);
+    state.today = t;
+    state.events = events;
+
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const projs = t.projects || [];
+    const totalMin = t.total_minutes || 0;
+    const longestBlock = t.longest_block;
+
+    el.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Today's Pulse</div><div class="page-sub">${dateStr} · ${timeStr}</div></div>
+        <div class="header-actions">
+          <button class="btn" onclick="refreshAll()"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M10.5 2A5 5 0 1 0 11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M9 2h1.5V3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Refresh</button>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Total dev time</div><div class="stat-value">${fmtDur(totalMin)}</div><div class="stat-delta">across ${t.project_count || 0} projects</div></div>
+        <div class="stat-card"><div class="stat-label">Commits</div><div class="stat-value">${t.total_commits || 0}</div><div class="stat-delta">across ${t.project_count || 0} projects</div></div>
+        <div class="stat-card"><div class="stat-label">Context switches</div><div class="stat-value" style="color:${(t.switches||0) > 20 ? 'var(--danger)' : 'var(--ink)'}">${t.switches || 0}</div><div class="stat-delta">fragmentation ${t.fragmentation_score || 0}/100</div></div>
+        <div class="stat-card"><div class="stat-label">Longest focus block</div><div class="stat-value">${longestBlock ? fmtDur(longestBlock.minutes) : '—'}</div><div class="stat-delta">${longestBlock ? `${longestBlock.start} – ${longestBlock.end}` : 'no deep work yet'}</div></div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Time by project</span><span class="tag tag-muted">Today</span></div>
+          <div class="panel-body">
+            <div class="bar-chart" id="today-bars"></div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--hairline)">
+              <div class="donut-wrap">
+                <svg width="72" height="72" viewBox="0 0 72 72" id="donut-today"></svg>
+                <div class="donut-legend" id="today-legend"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Recent activity</span><span class="panel-action" onclick="navigate('focus')">Focus view</span></div>
+          <div class="panel-body-sm"><div class="activity-list" id="today-activity"></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Deep work blocks</span><span class="tag tag-muted">${(t.deep_work_blocks||[]).length} blocks</span></div>
+        <div class="panel-body-sm"><div id="today-blocks"></div></div>
+      </div>
+    `;
+
+    const barsEl = document.getElementById('today-bars');
+    projs.forEach((p, i) => {
+      barsEl.innerHTML += `<div class="bar-row"><span class="bar-label">${esc(p.name)}</span><div class="bar-track"><div class="bar-fill" data-w="${p.pct}%" style="width:0%;background:${COLORS[i%COLORS.length]}"></div></div><span class="bar-val">${fmtDur(p.minutes)}</span></div>`;
+    });
+    if (!projs.length) barsEl.innerHTML = '<div style="color:var(--ink-tertiary);font-size:12px">No activity recorded yet today</div>';
+    setTimeout(() => { barsEl.querySelectorAll('.bar-fill').forEach(b => { b.style.width = b.dataset.w; }); }, 100);
+
+    const donutSvg = document.getElementById('donut-today');
+    const legendEl = document.getElementById('today-legend');
+    if (projs.length) {
+      const total = projs.reduce((s, p) => s + p.minutes, 0) || 1;
+      makeDonut(donutSvg, projs.map((p, i) => ({ pct: p.minutes / total, color: COLORS[i%COLORS.length] })), 36, 36, 26, 10);
+      projs.forEach((p, i) => {
+        legendEl.innerHTML += `<div class="legend-item"><span class="legend-dot" style="background:${COLORS[i%COLORS.length]}"></span>${esc(p.name)}<span class="legend-pct">${Math.round(p.pct)}%</span></div>`;
+      });
+    }
+
+    makeActivityList(document.getElementById('today-activity'), events.slice(0, 8));
+
+    const blocksEl = document.getElementById('today-blocks');
+    const blocks = t.deep_work_blocks || [];
+    if (blocks.length) {
+      blocks.sort((a, b) => (b.duration_minutes || 0) - (a.duration_minutes || 0));
+      const maxB = blocks[0]?.duration_minutes || 1;
+      blocks.slice(0, 5).forEach((b, i) => {
+        const pct = (b.duration_minutes || 0) / maxB * 100;
+        blocksEl.innerHTML += `<div class="activity-item"><span class="activity-time">${esc(b.start||'')} – ${esc(b.end||'')}</span><span class="activity-dot" style="background:${COLORS[i%COLORS.length]}"></span><span class="activity-text">${esc(b.project||'')}</span><span class="activity-proj">${fmtDur(b.duration_minutes)}</span></div>`;
+      });
+    } else {
+      blocksEl.innerHTML = '<div style="color:var(--ink-tertiary);font-size:12px;padding:8px 0">No deep work blocks recorded yet today</div>';
+    }
+  } catch (err) {
+    el.innerHTML = `<div class="loading-text" style="color:var(--danger)">Failed to load: ${esc(err.message)}</div>`;
+  }
+}
+
+// ── WEEK ─────────────────────────────────────────────────────────
+async function renderWeek() {
+  const el = document.getElementById('view-week');
+  try {
+    const w = await api('/api/stats/week');
+    state.week = w;
+
+    const now = new Date();
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - 6);
+    const dateRange = `${weekStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+    const daily = w.daily || [];
+    const bestDay = w.best_day;
+
+    el.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">This Week</div><div class="page-sub">${dateRange}</div></div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Total this week</div><div class="stat-value">${fmtDur(w.total_minutes)}</div><div class="stat-delta">${w.total_hours}h across ${(w.projects||[]).length} projects</div></div>
+        <div class="stat-card"><div class="stat-label">Commits</div><div class="stat-value">${w.total_commits||0}</div><div class="stat-delta">this week</div></div>
+        <div class="stat-card"><div class="stat-label">Avg focus block</div><div class="stat-value">${w.avg_focus_block ? w.avg_focus_block+'m' : '—'}</div><div class="stat-delta">this week</div></div>
+        <div class="stat-card"><div class="stat-label">Best day</div><div class="stat-value" style="color:var(--success)">${bestDay ? bestDay.day : '—'}</div><div class="stat-delta">${bestDay ? fmtHours(bestDay.hours*60)+', '+bestDay.commits+' commits' : ''}</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Daily hours</span><span class="tag tag-muted">Mon–Sun</span></div>
+          <div class="panel-body">
+            <div class="switch-chart" id="week-hours-chart" style="height:80px"></div>
+            <div style="margin-top:10px"><div class="bar-chart" id="week-project-bars"></div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Weekly breakdown</span></div>
+          <div class="panel-body">
+            <div id="week-grid-full" class="week-grid" style="gap:6px"></div>
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--hairline)">
+              <div style="font-size:11px;color:var(--ink-tertiary);margin-bottom:8px">Time by project this week</div>
+              <div style="display:flex;flex-direction:column;gap:6px" id="week-proj-dist"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Context switches — this week</span><span class="tag tag-warn">${w.switches_per_day ? 'Avg '+w.switches_per_day+'/day' : w.switches+' total'}</span></div>
+        <div class="panel-body">
+          <div class="switch-chart" id="switch-chart-week" style="height:70px"></div>
+        </div>
+      </div>
+    `;
+
+    const whc = document.getElementById('week-hours-chart');
+    if (daily.length) {
+      const maxH = Math.max(...daily.map(d => d.hours), 0.1);
+      daily.forEach(d => {
+        const cls = d.is_today ? 'high' : d.is_future ? 'none' : 'low';
+        whc.innerHTML += `<div class="switch-bar-wrap"><div class="switch-bar ${cls}" style="height:${d.hours > 0 ? Math.max(d.hours/maxH*70,4) : 2}px;background:${d.is_today ? 'var(--primary)' : d.is_future ? 'var(--surface-3)' : 'var(--surface-4)'}"></div><span class="switch-day">${d.day}</span></div>`;
+      });
+    }
+
+    const wgf = document.getElementById('week-grid-full');
+    if (daily.length) {
+      const maxH = Math.max(...daily.map(d => d.hours), 0.1);
+      daily.forEach(d => {
+        const cls = d.is_today ? 'today' : d.is_future ? 'future' : 'past';
+        wgf.innerHTML += `<div class="week-day"><div class="week-bar-wrap"><div class="week-bar ${cls}" style="height:${Math.max(d.hours/maxH*40,3)}px"></div></div><div class="week-label" style="${d.is_today?'color:var(--primary)':''}">${d.day}</div><div class="week-hours">${d.hours > 0 ? d.hours+'h' : '–'}</div></div>`;
+      });
+    }
+
+    const wpb = document.getElementById('week-project-bars');
+    const projs = w.projects || [];
+    projs.forEach((p, i) => {
+      wpb.innerHTML += `<div class="bar-row"><span class="bar-label">${esc(p.name)}</span><div class="bar-track"><div class="bar-fill" data-w="${p.pct}%" style="width:0%;background:${COLORS[i%COLORS.length]}"></div></div><span class="bar-val">${p.hours}h</span></div>`;
+    });
+    setTimeout(() => { wpb.querySelectorAll('.bar-fill').forEach(b => { b.style.width = b.dataset.w; }); }, 100);
+
+    const wpd = document.getElementById('week-proj-dist');
+    projs.forEach((p, i) => {
+      wpd.innerHTML += `<div class="bar-row"><span class="bar-label">${esc(p.name)}</span><div class="bar-track"><div class="bar-fill" style="width:${p.pct}%;background:${COLORS[i%COLORS.length]}"></div></div><span class="bar-val">${Math.round(p.pct)}%</span></div>`;
+    });
+
+    const switchData = daily.map(d => ({
+      d: d.day,
+      v: d.switches || 0,
+      cls: d.switches === 0 ? 'none' : d.switches < 10 ? 'low' : d.switches < 20 ? 'med' : 'high',
+    }));
+    makeSwitchChart(document.getElementById('switch-chart-week'), switchData, 60);
+  } catch (err) {
+    el.innerHTML = `<div class="loading-text" style="color:var(--danger)">Failed to load: ${esc(err.message)}</div>`;
+  }
+}
+
+// ── PROJECTS ─────────────────────────────────────────────────────
+async function renderProjects() {
+  const el = document.getElementById('view-projects');
+  try {
+    const [projs, branches] = await Promise.all([
+      api('/api/projects'),
+      api('/api/branches'),
+    ]);
+    state.projects = projs;
+
+    el.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Projects</div><div class="page-sub">${projs.length} tracked projects</div></div>
+      </div>
+      <div class="stats-row-3" id="proj-stat-cards"></div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">All-time project breakdown</span></div>
+        <div class="panel-body" style="padding:0"><table class="proj-table" id="proj-table"></table></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Project time share — this month</span></div>
+          <div class="panel-body">
+            <div class="donut-wrap">
+              <svg width="80" height="80" viewBox="0 0 80 80" id="donut-projects"></svg>
+              <div class="donut-legend" id="proj-donut-legend"></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Most active branches</span></div>
+          <div class="panel-body-sm"><div class="activity-list" id="branch-list"></div></div>
+        </div>
+      </div>
+    `;
+
+    const cardsEl = document.getElementById('proj-stat-cards');
+    projs.slice(0, 3).forEach((p, i) => {
+      cardsEl.innerHTML += `<div class="stat-card" style="border-top:2px solid ${COLORS[i%COLORS.length]}"><div class="stat-label">${esc(p.name)}</div><div class="stat-value">${fmtDur(p.week_minutes)}</div><div class="stat-delta">this week · ${p.week_commits} commits</div></div>`;
+    });
+
+    const pt = document.getElementById('proj-table');
+    pt.innerHTML = `<thead><tr><th>Project</th><th>Today</th><th>This week</th><th>This month</th><th>Commits</th><th>Share</th></tr></thead><tbody>${projs.map((p,i)=>`<tr><td><span class="proj-name" style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:${COLORS[i%COLORS.length]};display:inline-block"></span>${esc(p.name)}</span></td><td>${fmtDur(p.today_minutes)}</td><td>${fmtDur(p.week_minutes)}</td><td>${fmtDur(p.month_minutes)}</td><td>${p.month_commits}</td><td><div style="min-width:80px"><div class="proj-mini-bar"><div class="proj-mini-fill" style="width:${p.pct}%;background:${COLORS[i%COLORS.length]}"></div></div></td></tr>`).join('')}</tbody>`;
+
+    const totalMonth = projs.reduce((s, p) => s + (p.month_minutes || 0), 0) || 1;
+    makeDonut(
+      document.getElementById('donut-projects'),
+      projs.map((p, i) => ({ pct: (p.month_minutes || 0) / totalMonth, color: COLORS[i%COLORS.length] })),
+      40, 40, 30, 12
+    );
+    const dl = document.getElementById('proj-donut-legend');
+    projs.forEach((p, i) => {
+      dl.innerHTML += `<div class="legend-item"><span class="legend-dot" style="background:${COLORS[i%COLORS.length]}"></span>${esc(p.name)}<span class="legend-pct">${Math.round((p.month_minutes||0)/totalMonth*100)}%</span></div>`;
+    });
+
+    const bl = document.getElementById('branch-list');
+    if (branches.length) {
+      branches.forEach(b => {
+        const projColor = COLORS[projs.findIndex(p => p.name === b.project) % COLORS.length] || COLORS[0];
+        bl.innerHTML += `<div class="activity-item"><span class="activity-time">${esc(b.when||'')}</span><span class="activity-dot" style="background:${projColor}"></span><span class="activity-text"><code>${esc(b.branch)}</code>${b.commits ? ' — '+b.commits+' commits' : ''}</span><span class="activity-proj">${esc(b.project)}</span></div>`;
+      });
+    } else {
+      bl.innerHTML = '<div style="color:var(--ink-tertiary);font-size:12px;padding:8px 0">No branch activity this week</div>';
+    }
+  } catch (err) {
+    el.innerHTML = `<div class="loading-text" style="color:var(--danger)">Failed to load: ${esc(err.message)}</div>`;
+  }
+}
+
+// ── TOIL ─────────────────────────────────────────────────────────
+async function renderToil() {
+  const el = document.getElementById('view-toil');
+  try {
+    const data = await api('/api/toil');
+    state.toil = data;
+
+    const totalWasted = data.reduce((s, p) => s + (p.wasted_hours || 0), 0);
+    const totalReps = data.reduce((s, p) => s + (p.count || 0), 0);
+
+    const badge = document.getElementById('toil-badge');
+    if (badge) badge.textContent = data.length || '';
+
+    el.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Toil Detector</div><div class="page-sub">Repetitive command sequences detected in your shell history</div></div>
+      </div>
+      <div class="stats-row-3">
+        <div class="stat-card"><div class="stat-label">Patterns found</div><div class="stat-value" style="color:var(--warn)">${data.length}</div><div class="stat-delta">automated detection</div></div>
+        <div class="stat-card"><div class="stat-label">Total repetitions</div><div class="stat-value">${totalReps}</div><div class="stat-delta">across all patterns</div></div>
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Est. time wasted</div><div class="stat-value" style="color:var(--danger)">${totalWasted.toFixed(1)}h</div><div class="stat-delta">automate to save</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Detected patterns</span><span class="tag tag-warn">${data.length} total</span></div>
+        <div class="panel-body-sm"><div class="toil-list" id="toil-list-full"></div></div>
+      </div>
+    `;
+
+    const tl = document.getElementById('toil-list-full');
+    if (data.length) {
+      data.forEach((p, i) => {
+        tl.innerHTML += `
+          <div class="toil-item">
+            <div class="toil-header"><span class="toil-cmd">${esc(p.label)}</span><span class="toil-freq">×${p.count}</span></div>
+            <div class="toil-body"><span class="toil-suggest">→ devpulse suggest ${p.id}</span><span class="toil-meta">~${p.wasted_hours}h wasted</span></div>
+          </div>`;
+      });
+    } else {
+      tl.innerHTML = '<div style="color:var(--ink-tertiary);font-size:12px;padding:12px 0">No toil patterns detected yet. Keep using your shell — patterns will appear here.</div>';
+    }
+  } catch (err) {
+    el.innerHTML = `<div class="loading-text" style="color:var(--danger)">Failed to load: ${esc(err.message)}</div>`;
+  }
+}
+
+// ── FOCUS ────────────────────────────────────────────────────────
+async function renderFocus() {
+  const el = document.getElementById('view-focus');
+  try {
+    const data = await api('/api/focus');
+    state.focus = data;
+
+    const t = data.today || {};
+    const w = data.week || {};
+    const dailySw = data.daily_switches || [];
+    const dailyF = data.daily_focus || [];
+
+    el.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Focus Analysis</div><div class="page-sub">Context switching patterns and deep work insights</div></div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Avg focus block</div><div class="stat-value">${w.avg_focus_block ? w.avg_focus_block+'m' : '—'}</div><div class="stat-delta">this week</div></div>
+        <div class="stat-card"><div class="stat-label">Best focus day</div><div class="stat-value" style="color:var(--success)">${esc(w.best_day||'—')}</div><div class="stat-delta">fewest switches</div></div>
+        <div class="stat-card"><div class="stat-label">Worst day</div><div class="stat-value" style="color:var(--danger)">${esc(w.worst_day||'—')}</div><div class="stat-delta">most switches</div></div>
+        <div class="stat-card"><div class="stat-label">Today switches</div><div class="stat-value">${t.switches||0}</div><div class="stat-delta">focus score ${t.focus_score||0}/100</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Focus block duration — this week</span></div>
+          <div class="panel-body">
+            <div class="switch-chart" id="focus-block-chart" style="height:80px"></div>
+            <div style="margin-top:8px;font-size:11px;color:var(--ink-tertiary)">Bar height = longest focus block that day</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Context switches — this week</span></div>
+          <div class="panel-body">
+            <div class="switch-chart" id="focus-switch-chart" style="height:80px"></div>
+            <div style="margin-top:8px;font-size:11px;color:var(--ink-tertiary)">Target: under 15/day. Red bars exceed threshold.</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Deep work blocks — today</span><span class="tag tag-muted">${(t.deep_work_blocks||[]).length} blocks</span></div>
+        <div class="panel-body-sm"><div class="activity-list" id="focus-blocks-list"></div></div>
+      </div>
+      ${w.top_transitions && w.top_transitions.length ? `
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Top project transitions</span></div>
+        <div class="panel-body">
+          <div class="bar-chart" id="focus-transitions"></div>
+        </div>
+      </div>` : ''}
+    `;
+
+    const fbc = document.getElementById('focus-block-chart');
+    if (dailyF.length) {
+      const maxV = Math.max(...dailyF.map(d => d.longest_block || 0), 1);
+      dailyF.forEach(d => {
+        const v = d.longest_block || 0;
+        fbc.innerHTML += `<div class="switch-bar-wrap"><div class="switch-bar" style="height:${v > 0 ? Math.max(v/maxV*70,4) : 2}px;background:var(--success);opacity:${d.is_today?1:0.6}"></div><span class="switch-day">${d.day}</span></div>`;
+      });
+    }
+
+    const fsc = document.getElementById('focus-switch-chart');
+    const swData = dailySw.map(d => ({ d: d.day, v: d.switches, cls: d.cls }));
+    makeSwitchChart(fsc, swData, 70);
+
+    const fbl = document.getElementById('focus-blocks-list');
+    const blocks = t.deep_work_blocks || [];
+    if (blocks.length) {
+      blocks.sort((a, b) => (b.duration_minutes || 0) - (a.duration_minutes || 0));
+      blocks.slice(0, 6).forEach((b, i) => {
+        fbl.innerHTML += `<div class="activity-item"><span class="activity-time">${esc(b.start||'')}–${esc(b.end||'')}</span><span class="activity-dot" style="background:${COLORS[i%COLORS.length]}"></span><span class="activity-text">${esc(b.project||'')}</span><span class="activity-proj">${fmtDur(b.duration_minutes)}</span></div>`;
+      });
+    } else {
+      fbl.innerHTML = '<div style="color:var(--ink-tertiary);font-size:12px;padding:8px 0">No deep work blocks today</div>';
+    }
+
+    const ftEl = document.getElementById('focus-transitions');
+    if (ftEl && w.top_transitions) {
+      const maxC = w.top_transitions[0]?.count || 1;
+      w.top_transitions.forEach((tr, i) => {
+        ftEl.innerHTML += `<div class="bar-row"><span class="bar-label">${esc(tr.from_project)} → ${esc(tr.to_project)}</span><div class="bar-track"><div class="bar-fill" style="width:${(tr.count/maxC*100)}%;background:${COLORS[i%COLORS.length]}"></div></div><span class="bar-val">×${tr.count}</span></div>`;
+      });
+    }
+  } catch (err) {
+    el.innerHTML = `<div class="loading-text" style="color:var(--danger)">Failed to load: ${esc(err.message)}</div>`;
+  }
+}
+
+// ── INSIGHTS ─────────────────────────────────────────────────────
+async function renderInsights() {
+  const el = document.getElementById('view-insights');
+  el.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">AI Insights</div><div class="page-sub">Natural language analysis of your workflow patterns</div></div>
+      <div class="header-actions">
+        <span class="tag tag-primary" style="font-size:11px;padding:4px 10px" id="llm-tag">checking…</span>
+        <button class="btn btn-accent" id="run-insights-btn" disabled><span class="spinner" id="insights-spinner"></span> Loading insights…</button>
+      </div>
+    </div>
+    <div class="stats-row" id="insights-stats" style="display:none"></div>
+    <div class="panel" id="insights-panel" style="display:none">
+      <div class="panel-header"><span class="panel-title">Workflow insights</span></div>
+      <div class="panel-body"><div class="insights-list" id="full-insights-list"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Ask DevPulse</span><span class="tag tag-muted">Natural language query</span></div>
+      <div class="panel-body">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input id="insight-query" type="text" placeholder="e.g. What project should I focus on tomorrow?" style="flex:1;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:8px 12px;font-size:13px;color:var(--ink);font-family:var(--font);outline:none;" />
+          <button class="btn btn-accent" id="ask-btn">Ask</button>
+        </div>
+        <div id="ask-response" style="display:none;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:12px;font-size:12px;color:var(--ink-muted);line-height:1.7"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="quick-queries"></div>
+      </div>
+    </div>
+  `;
+
+  const quickQs = ['What project should I focus on tomorrow?', 'When is my best time for deep work?', 'What command should I automate next?', 'How did this week compare to last?'];
+  const qqEl = document.getElementById('quick-queries');
+  quickQs.forEach(q => {
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.style.fontSize = '11px';
+    btn.textContent = q;
+    btn.addEventListener('click', () => { document.getElementById('insight-query').value = q; triggerAsk(q); });
+    qqEl.appendChild(btn);
+  });
+
+  document.getElementById('ask-btn').addEventListener('click', () => {
+    const q = document.getElementById('insight-query').value.trim();
+    if (q) triggerAsk(q);
+  });
+  document.getElementById('insight-query').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const q = e.target.value.trim(); if (q) triggerAsk(q); }
+  });
+
+  try {
+    const ins = await api('/api/insights');
+    const tag = document.getElementById('llm-tag');
+    tag.textContent = ins.available ? `${ins.provider} · ${ins.model || 'auto'} · ${ins.provider === 'ollama' ? 'local' : 'cloud'}` : 'No LLM configured';
+
+    const btn = document.getElementById('run-insights-btn');
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5v2M6 8.5v2M1.5 6h2M8.5 6h2M3 3l1.4 1.4M7.6 7.6 9 9M3 9l1.4-1.4M7.6 4.4 9 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Re-run analysis';
+    btn.addEventListener('click', renderInsights);
+
+    if (ins.insights) {
+      const statsEl = document.getElementById('insights-stats');
+      statsEl.style.display = '';
+      statsEl.innerHTML = `
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">LLM provider</div><div class="stat-value" style="font-size:16px;letter-spacing:-0.3px">${esc(ins.provider)}</div><div class="stat-delta" style="color:var(--success)">${ins.provider === 'ollama' ? 'local · free' : 'cloud'}</div></div>
+        <div class="stat-card"><div class="stat-label">Model</div><div class="stat-value" style="font-size:16px;letter-spacing:-0.3px;font-family:var(--mono)">${esc(ins.model||'auto')}</div><div class="stat-delta">${esc(ins.provider)}</div></div>
+        <div class="stat-card"><div class="stat-label">Last analyzed</div><div class="stat-value" style="font-size:16px;letter-spacing:-0.3px">${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false})}</div><div class="stat-delta">just now</div></div>
+        <div class="stat-card"><div class="stat-label">Data range</div><div class="stat-value" style="font-size:16px;letter-spacing:-0.3px">30 days</div><div class="stat-delta">activity analyzed</div></div>
+      `;
+
+      const panel = document.getElementById('insights-panel');
+      panel.style.display = '';
+      const il = document.getElementById('full-insights-list');
+      const lines = ins.insights.split('\n').filter(l => l.trim());
+      const iconSvgs = {
+        success: { bg:'rgba(39,166,68,0.1)', svg:'<path d="M2.5 6.5l3 3 5-5" stroke="#4ade80" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
+        warn:    { bg:'rgba(217,119,6,0.1)',  svg:'<path d="M6.5 3v3.5" stroke="#d97706" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="9" r=".8" fill="#d97706"/>' },
+        primary: { bg:'rgba(94,106,210,0.1)', svg:'<path d="M2 9.5l2-3 2 2 2-4 2 3" stroke="var(--primary)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>' },
+      };
+      const iconKeys = ['success', 'warn', 'primary'];
+      lines.forEach((line, i) => {
+        const clean = line.replace(/^[\d\.\-\*]+\s*/, '').trim();
+        if (!clean) return;
+        const ic = iconSvgs[iconKeys[i % iconKeys.length]];
+        il.innerHTML += `<div class="insight-item"><div class="insight-icon" style="background:${ic.bg}"><svg width="13" height="13" viewBox="0 0 13 13" fill="none">${ic.svg}</svg></div><span class="insight-text">${esc(clean)}</span></div>`;
+      });
+    } else {
+      const panel = document.getElementById('insights-panel');
+      panel.style.display = '';
+      document.getElementById('full-insights-list').innerHTML = '<div style="color:var(--ink-tertiary);font-size:12px;padding:8px 0">No insights available. Configure an LLM provider to enable AI analysis.</div>';
+    }
+  } catch (err) {
+    document.getElementById('llm-tag').textContent = 'error';
+    document.getElementById('run-insights-btn').disabled = false;
+    document.getElementById('run-insights-btn').textContent = 'Retry';
+  }
+}
+
+async function triggerAsk(q) {
+  const resp = document.getElementById('ask-response');
+  resp.style.display = 'block';
+  resp.innerHTML = '<span class="spinner"></span> thinking…';
+  try {
+    const r = await api('/api/insights/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q }),
+    });
+    resp.textContent = r.answer || 'No response';
+  } catch (err) {
+    resp.textContent = 'Error: ' + err.message;
+  }
+}
+
+// ── CONFIG ───────────────────────────────────────────────────────
+async function renderConfig() {
+  const el = document.getElementById('view-config');
+  try {
+    const [cfg, st] = await Promise.all([
+      api('/api/config'),
+      api('/api/status'),
+    ]);
+    state.config = cfg;
+    state.status = st;
+
+    const llm = cfg.llm || {};
+    const collectors = cfg.collectors || {};
+    const ui = cfg.ui || {};
+    const general = cfg.general || {};
+
+    el.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Configuration</div><div class="page-sub">devpulse config · ~/.devpulse/config.toml</div></div>
+        <div class="header-actions"><button class="btn btn-accent" id="save-config-btn">Save changes</button></div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">LLM Provider</span></div>
+          <div class="config-section">
+            <div class="config-row"><div><div class="config-key">Provider</div><div class="config-desc">Which LLM backend to use for suggestions and insights</div></div><select class="config-select" id="cfg-llm-provider">${['ollama','claude','groq','openai','none'].map(v=>`<option${v===(llm.provider||'ollama')?' selected':''}>${v}${v==='ollama'?' (local)':''}</option>`).join('')}</select></div>
+            <div class="config-row"><div><div class="config-key">Model</div><div class="config-desc">Model name for the selected provider</div></div><code class="config-val">${esc(llm.model||'auto')}</code></div>
+            <div class="config-row"><div><div class="config-key">Ollama host</div><div class="config-desc">Base URL for local Ollama instance</div></div><code class="config-val">${esc((llm.ollama||{}).host||'localhost:11434')}</code></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Collection</span></div>
+          <div class="config-section">
+            <div class="config-row"><div><div class="config-key">Shell hook</div><div class="config-desc">Capture every command via zsh/bash precmd</div></div><div class="toggle ${collectors.shell !== false ? 'on' : ''}" data-cfg="collectors.shell"></div></div>
+            <div class="config-row"><div><div class="config-key">Git watcher</div><div class="config-desc">Track commits, branches, stash events</div></div><div class="toggle ${collectors.git !== false ? 'on' : ''}" data-cfg="collectors.git"></div></div>
+            <div class="config-row"><div><div class="config-key">Window focus</div><div class="config-desc">Track active app for context switch detection</div></div><div class="toggle ${collectors.window !== false ? 'on' : ''}" data-cfg="collectors.window"></div></div>
+            <div class="config-row"><div><div class="config-key">File watcher</div><div class="config-desc">Track .env and config file edits</div></div><div class="toggle ${collectors.file_watcher === true ? 'on' : ''}" data-cfg="collectors.file_watcher"></div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Privacy</span></div>
+          <div class="config-section">
+            <div class="config-row"><div><div class="config-key">Local-only mode</div><div class="config-desc">Never send data to any external service</div></div><div class="toggle ${general.local_only !== false ? 'on' : ''}" data-cfg="general.local_only"></div></div>
+            <div class="config-row"><div><div class="config-key">Retention</div><div class="config-desc">How long to keep event data</div></div><code class="config-val">${general.retention_days || 90} days</code></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Web UI</span></div>
+          <div class="config-section">
+            <div class="config-row"><div><div class="config-key">Port</div><div class="config-desc">Port for devpulse web server</div></div><code class="config-val">${ui.port || 8765}</code></div>
+            <div class="config-row"><div><div class="config-key">Bind address</div><div class="config-desc">Network interface to bind to</div></div><code class="config-val">${esc(ui.host || '127.0.0.1')}</code></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Daemon status</span></div>
+        <div class="panel-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+            <div><div style="font-size:10px;color:var(--ink-tertiary);margin-bottom:4px">PID</div><code style="font-family:var(--mono);font-size:13px;color:var(--ink)">${st.pid || '—'}</code></div>
+            <div><div style="font-size:10px;color:var(--ink-tertiary);margin-bottom:4px">Uptime</div><code style="font-family:var(--mono);font-size:13px;color:var(--ink)">${esc(st.uptime||'—')}</code></div>
+            <div><div style="font-size:10px;color:var(--ink-tertiary);margin-bottom:4px">Events today</div><code style="font-family:var(--mono);font-size:13px;color:var(--ink)">${st.total_events||0}</code></div>
+            <div><div style="font-size:10px;color:var(--ink-tertiary);margin-bottom:4px">DB size</div><code style="font-family:var(--mono);font-size:13px;color:var(--ink)">${esc(st.db_size||'—')}</code></div>
+          </div>
+          <div style="margin-top:16px;display:flex;gap:8px">
+            <button class="btn" id="restart-daemon-btn">Restart daemon</button>
+            <button class="btn" id="stop-daemon-btn" style="color:var(--danger);border-color:rgba(232,123,90,0.3)">Stop daemon</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    el.querySelectorAll('.toggle').forEach(t => {
+      t.addEventListener('click', () => t.classList.toggle('on'));
+    });
+
+    document.getElementById('save-config-btn').addEventListener('click', async () => {
+      const updates = {};
+      el.querySelectorAll('.toggle[data-cfg]').forEach(t => {
+        updates[t.dataset.cfg] = t.classList.contains('on');
+      });
+      const provSelect = document.getElementById('cfg-llm-provider');
+      if (provSelect) updates['llm.provider'] = provSelect.value.replace(' (local)', '');
+      try {
+        await api('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+        const btn = document.getElementById('save-config-btn');
+        btn.textContent = 'Saved!';
+        setTimeout(() => { btn.textContent = 'Save changes'; }, 2000);
+      } catch (err) {
+        alert('Save failed: ' + err.message);
+      }
+    });
+
+    document.getElementById('restart-daemon-btn').addEventListener('click', async () => {
+      try {
+        await api('/api/daemon/restart', { method: 'POST' });
+        renderConfig();
+      } catch {}
+    });
+    document.getElementById('stop-daemon-btn').addEventListener('click', async () => {
+      try {
+        await api('/api/daemon/stop', { method: 'POST' });
+        renderConfig();
+      } catch {}
+    });
+  } catch (err) {
+    el.innerHTML = `<div class="loading-text" style="color:var(--danger)">Failed to load config: ${esc(err.message)}</div>`;
+  }
+}
+
+// ── Navigation & Init ────────────────────────────────────────────
+const renderFns = { today: renderToday, week: renderWeek, projects: renderProjects, toil: renderToil, focus: renderFocus, insights: renderInsights, config: renderConfig };
+
+function navigate(view) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  document.querySelector(`.nav-item[data-view="${view}"]`)?.classList.add('active');
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const el = document.getElementById(`view-${view}`);
+  if (el) el.classList.add('active');
+  document.getElementById('main').scrollTop = 0;
+  renderFns[view]?.();
+}
+
+document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+  item.addEventListener('click', e => { e.preventDefault(); navigate(item.dataset.view); });
 });
 
-// ─── Charts ──────────────────────────────────────────────────────────────────
-function makeChart(id, config) {
-  const canvas = document.getElementById(id);
-  if (!canvas) return;
-  if (charts[id]) charts[id].destroy();
-  charts[id] = new Chart(canvas, config);
+async function refreshAll() {
+  const view = document.querySelector('.nav-item.active')?.dataset?.view || 'today';
+  renderFns[view]?.();
+  updateTopbar();
 }
 
-const COLORS = ['#3b4fd4','#22d3ee','#a78bfa','#34d399','#f59e0b','#f472b6','#60a5fa','#fb923c'];
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function fmtDur(minutes) {
-  const h = Math.floor(minutes / 60), m = Math.round(minutes % 60);
-  return h ? `${h}h ${String(m).padStart(2,'0')}m` : `${m}m`;
-}
-function scoreColor(s) {
-  return s >= 70 ? '#34d399' : s >= 40 ? '#f59e0b' : '#f87171';
-}
-function el(tag, cls, html) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (html !== undefined) e.innerHTML = html;
-  return e;
-}
-function section(title, content) {
-  return `<div class="card p-5 mb-5">
-    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">${title}</h2>
-    ${content}
-  </div>`;
-}
-
-// ─── Dashboard ───────────────────────────────────────────────────────────────
-function renderDashboard() {
-  const t = state.today, w = state.week;
-  if (!t || !w) { document.getElementById('page-dashboard').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
-
-  const fc = scoreColor(t.focus_score);
+async function updateTopbar() {
   const now = new Date();
-  const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+  document.getElementById('topbar-date').textContent = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  document.getElementById('topbar-addr').textContent = 'localhost:' + (location.port || '8765');
 
-  let html = `
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold text-white">${dateStr}</h1>
-      <p class="text-gray-400 text-sm mt-1">Your development activity overview</p>
-    </div>
-  </div>
-
-  <!-- Stat cards -->
-  <div class="grid grid-cols-5 gap-4 mb-5">
-    ${statCard('⏱', fmtDur(t.total_minutes), 'Active today', '#22d3ee')}
-    ${statCard('📋', t.total_cmds, 'Commands', '#a78bfa')}
-    ${statCard('💾', t.total_commits, 'Commits', '#34d399')}
-    ${statCard('🔀', t.switches, 'Ctx switches', '#f59e0b')}
-    ${statCard('🎯', `${t.focus_score}/100`, 'Focus score', fc)}
-  </div>
-
-  <div class="grid grid-cols-2 gap-5 mb-5">
-    <!-- Today projects chart -->
-    <div class="card p-5">
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Today's Project Time</h2>
-      <div style="height:220px"><canvas id="chart-today-projects"></canvas></div>
-    </div>
-
-    <!-- Week projects chart -->
-    <div class="card p-5">
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Week Project Hours</h2>
-      <div style="height:220px"><canvas id="chart-week-projects"></canvas></div>
-    </div>
-  </div>
-
-  <!-- Deep work blocks -->
-  ${t.deep_work_blocks && t.deep_work_blocks.length ? `
-  <div class="card p-5 mb-5">
-    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Deep Work Blocks</h2>
-    <div class="space-y-2">
-      ${t.deep_work_blocks.sort((a,b)=>b.duration_minutes-a.duration_minutes).slice(0,5).map((b,i) => {
-        const pct = b.duration_minutes / Math.max(...t.deep_work_blocks.map(x=>x.duration_minutes)) * 100;
-        return `<div class="flex items-center gap-3 text-sm">
-          <span class="text-gray-400 w-28 flex-shrink-0 font-mono text-xs">${b.start} – ${b.end}</span>
-          <span class="text-white w-32 flex-shrink-0">${b.project}</span>
-          <div class="progress-bar flex-1"><div class="progress-fill" style="width:${pct}%;background:${COLORS[i%COLORS.length]}"></div></div>
-          <span class="text-cyan-400 w-16 text-right text-xs">${fmtDur(b.duration_minutes)}</span>
-        </div>`;
-      }).join('')}
-    </div>
-  </div>` : ''}
-
-  <!-- Week summary -->
-  <div class="card p-5">
-    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">7-Day Summary</h2>
-    <div class="grid grid-cols-4 gap-4">
-      ${miniStat('Total hours', `${w.total_hours}h`, '#22d3ee')}
-      ${miniStat('Commits', w.total_commits, '#34d399')}
-      ${miniStat('Ctx switches', w.switches, '#f59e0b')}
-      ${miniStat('Switches/day', w.switches_per_day, '#a78bfa')}
-    </div>
-  </div>`;
-
-  document.getElementById('page-dashboard').innerHTML = html;
-
-  // Today doughnut
-  if (t.projects.length) {
-    makeChart('chart-today-projects', {
-      type: 'doughnut',
-      data: {
-        labels: t.projects.map(p => p.name),
-        datasets: [{ data: t.projects.map(p => p.minutes), backgroundColor: COLORS, borderWidth: 2, borderColor: '#1a1f2e' }]
-      },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 10 } } } }
-    });
-  }
-
-  // Week bar
-  if (w.projects.length) {
-    makeChart('chart-week-projects', {
-      type: 'bar',
-      data: {
-        labels: w.projects.map(p => p.name),
-        datasets: [{ label: 'Hours', data: w.projects.map(p => p.hours), backgroundColor: COLORS, borderRadius: 4 }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { color: '#2d3548' }, ticks: { color: '#9ca3af' } },
-          y: { grid: { display: false }, ticks: { color: '#e2e8f0' } }
-        }
-      }
-    });
-  }
-}
-
-function statCard(icon, value, label, color) {
-  return `<div class="stat-card p-4">
-    <div class="text-lg mb-1">${icon}</div>
-    <div class="text-2xl font-bold" style="color:${color}">${value}</div>
-    <div class="text-xs text-gray-500 mt-1">${label}</div>
-  </div>`;
-}
-function miniStat(label, value, color) {
-  return `<div class="text-center p-3 rounded-lg" style="background:#0f1117">
-    <div class="text-xl font-bold" style="color:${color}">${value}</div>
-    <div class="text-xs text-gray-500 mt-1">${label}</div>
-  </div>`;
-}
-
-// ─── Projects ─────────────────────────────────────────────────────────────────
-function renderProjects() {
-  const data = state.projects;
-  if (!data) { document.getElementById('page-projects').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
-
-  let html = `
-  <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-white">Projects</h1>
-    <span class="text-gray-500 text-sm">Last 7 days</span>
-  </div>
-  <div class="grid grid-cols-2 gap-5 mb-5">
-    <div class="card p-5">
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Time Distribution</h2>
-      <div style="height:260px"><canvas id="chart-projects-pie"></canvas></div>
-    </div>
-    <div class="card p-5">
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Hours per Project</h2>
-      <div style="height:260px"><canvas id="chart-projects-bar"></canvas></div>
-    </div>
-  </div>
-  <div class="card p-5">
-    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">All Projects</h2>
-    <table class="w-full text-sm">
-      <thead><tr class="text-gray-500 text-xs uppercase border-b border-gray-800">
-        <th class="text-left pb-2">Project</th>
-        <th class="text-right pb-2">Hours</th>
-        <th class="text-right pb-2">Commits</th>
-        <th class="pb-2" style="min-width:160px">Share</th>
-      </tr></thead>
-      <tbody>
-        ${data.map((p, i) => `
-        <tr class="border-b border-gray-800/50 hover:bg-gray-800/20">
-          <td class="py-2.5">
-            <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${COLORS[i%COLORS.length]}"></span>
-              <span class="text-white font-medium">${p.name}</span>
-            </div>
-          </td>
-          <td class="text-right text-cyan-400 font-mono">${p.hours}h</td>
-          <td class="text-right text-gray-400">${p.commits}</td>
-          <td class="py-2.5 pl-4">
-            <div class="flex items-center gap-2">
-              <div class="progress-bar flex-1"><div class="progress-fill" style="width:${p.pct}%;background:${COLORS[i%COLORS.length]}"></div></div>
-              <span class="text-gray-500 text-xs w-10 text-right">${p.pct}%</span>
-            </div>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-  </div>`;
-
-  document.getElementById('page-projects').innerHTML = html;
-
-  if (data.length) {
-    makeChart('chart-projects-pie', {
-      type: 'doughnut',
-      data: { labels: data.map(p=>p.name), datasets: [{ data: data.map(p=>p.hours), backgroundColor: COLORS, borderWidth: 2, borderColor: '#1a1f2e' }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#9ca3af', font: { size: 11 }, boxWidth: 10 } } } }
-    });
-    makeChart('chart-projects-bar', {
-      type: 'bar',
-      data: { labels: data.map(p=>p.name), datasets: [{ label: 'Hours', data: data.map(p=>p.hours), backgroundColor: COLORS, borderRadius: 4 }] },
-      options: {
-        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-        plugins: { legend: { display: false } },
-        scales: { x: { grid: { color: '#2d3548' }, ticks: { color: '#9ca3af' } }, y: { grid: { display: false }, ticks: { color: '#e2e8f0' } } }
-      }
-    });
-  }
-}
-
-// ─── Toil ─────────────────────────────────────────────────────────────────────
-function renderToil() {
-  const data = state.toil;
-  if (!data) { document.getElementById('page-toil').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
-
-  const totalWasted = data.reduce((s, p) => s + p.wasted_hours, 0);
-
-  let html = `
-  <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-white">Toil Detection</h1>
-    <span class="badge" style="background:#7f1d1d;color:#fca5a5">~${totalWasted.toFixed(1)}h wasted</span>
-  </div>
-  ${data.length === 0 ? `<div class="card p-8 text-center text-gray-500">No repeated command patterns detected yet.<br><span class="text-sm">Keep using your shell — patterns will appear here.</span></div>` : `
-  <div class="grid grid-cols-2 gap-5 mb-5">
-    <div class="card p-5">
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Repetition Count</h2>
-      <div style="height:220px"><canvas id="chart-toil-count"></canvas></div>
-    </div>
-    <div class="card p-5">
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Time Wasted</h2>
-      <div style="height:220px"><canvas id="chart-toil-wasted"></canvas></div>
-    </div>
-  </div>
-  <div class="card p-5">
-    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Repeated Patterns</h2>
-    <div class="space-y-3">
-      ${data.map((p, i) => `
-      <div class="toil-row p-3 rounded-lg border border-gray-800 cursor-pointer" onclick="copyToClipboard('devpulse suggest ${p.id}')">
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${COLORS[i%COLORS.length]}"></span>
-              <span class="text-xs text-gray-500">Pattern #${p.id}</span>
-            </div>
-            <div class="font-mono text-sm text-yellow-300 truncate">${p.label}</div>
-            <div class="flex flex-wrap gap-1 mt-2">
-              ${p.commands.map(c => `<span class="badge" style="background:#1e2538;color:#94a3b8">${c}</span>`).join('')}
-            </div>
-          </div>
-          <div class="flex-shrink-0 text-right">
-            <div class="text-orange-400 font-bold text-lg">×${p.count}</div>
-            <div class="text-red-400 text-xs">~${p.wasted_hours}h wasted</div>
-            <div class="text-gray-600 text-xs mt-1">click to copy suggest cmd</div>
-          </div>
-        </div>
-      </div>`).join('')}
-    </div>
-  </div>`}`;
-
-  document.getElementById('page-toil').innerHTML = html;
-
-  if (data.length) {
-    const labels = data.map(p => `#${p.id}`);
-    makeChart('chart-toil-count', {
-      type: 'bar',
-      data: { labels, datasets: [{ label: 'Times', data: data.map(p=>p.count), backgroundColor: '#f59e0b', borderRadius: 4 }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af' } }, y: { grid: { color: '#2d3548' }, ticks: { color: '#9ca3af' } } } }
-    });
-    makeChart('chart-toil-wasted', {
-      type: 'bar',
-      data: { labels, datasets: [{ label: 'Hours', data: data.map(p=>p.wasted_hours), backgroundColor: '#ef4444', borderRadius: 4 }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#9ca3af' } }, y: { grid: { color: '#2d3548' }, ticks: { color: '#9ca3af' } } } }
-    });
-  }
-}
-
-// ─── Activity ─────────────────────────────────────────────────────────────────
-function renderActivity() {
-  const data = state.events;
-  if (!data) { document.getElementById('page-activity').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
-
-  const projectColors = {};
-  [...new Set(data.map(e=>e.project))].forEach((p,i) => projectColors[p] = COLORS[i%COLORS.length]);
-
-  let html = `
-  <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-white">Activity Feed</h1>
-    <span class="text-gray-500 text-sm">${data.length} events (last 7 days)</span>
-  </div>
-  <div class="card p-5">
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead><tr class="text-gray-500 text-xs uppercase border-b border-gray-800">
-          <th class="text-left pb-2 pr-4">Time</th>
-          <th class="text-left pb-2 pr-4">Project</th>
-          <th class="text-left pb-2 pr-4">Command</th>
-          <th class="text-center pb-2">Exit</th>
-        </tr></thead>
-        <tbody>
-          ${data.slice(0, 100).map(e => {
-            const ts = new Date(e.timestamp);
-            const timeStr = ts.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-            const dateStr = ts.toLocaleDateString('en-US', { month:'short', day:'numeric' });
-            const c = projectColors[e.project] || '#9ca3af';
-            const exitOk = e.exit_code === 0;
-            return `<tr class="cmd-row border-b border-gray-800/40">
-              <td class="py-2 pr-4 text-gray-500 font-mono text-xs whitespace-nowrap">${dateStr} ${timeStr}</td>
-              <td class="py-2 pr-4"><span class="badge" style="background:${c}22;color:${c}">${e.project}</span></td>
-              <td class="py-2 pr-4 font-mono text-xs text-gray-300 max-w-md truncate">${e.cmd || '—'}</td>
-              <td class="py-2 text-center"><span class="badge ${exitOk ? '' : ''}" style="background:${exitOk?'#14532d':'#7f1d1d'};color:${exitOk?'#86efac':'#fca5a5'}">${e.exit_code}</span></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-      ${data.length > 100 ? `<p class="text-center text-gray-600 text-xs mt-3">Showing 100 of ${data.length} events</p>` : ''}
-    </div>
-  </div>`;
-
-  document.getElementById('page-activity').innerHTML = html;
-}
-
-// ─── Focus ─────────────────────────────────────────────────────────────────────
-function renderFocus() {
-  const data = state.focus;
-  if (!data) { document.getElementById('page-focus').innerHTML = '<div class="text-gray-500 text-sm p-4">Loading…</div>'; return; }
-
-  const { today, week } = data;
-  const todayColor = scoreColor(today.focus_score);
-  const weekColor = scoreColor(week.focus_score);
-
-  let html = `
-  <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-white">Focus Quality</h1>
-  </div>
-
-  <div class="grid grid-cols-2 gap-5 mb-5">
-    <!-- Today focus -->
-    <div class="card p-5">
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Today</h2>
-      <div class="flex items-center gap-6">
-        <div class="relative w-28 h-28">
-          <canvas id="chart-focus-today"></canvas>
-          <div class="absolute inset-0 flex items-center justify-center">
-            <span class="text-2xl font-bold" style="color:${todayColor}">${today.focus_score}</span>
-          </div>
-        </div>
-        <div class="space-y-2 text-sm">
-          ${focusStat('Context switches', today.switches, '#f59e0b')}
-          ${focusStat('Fragmentation', today.fragmentation_score + '/100', '#f87171')}
-        </div>
-      </div>
-      ${today.deep_work_blocks && today.deep_work_blocks.length ? `
-      <div class="mt-4 pt-4 border-t border-gray-800">
-        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Deep work blocks</div>
-        ${today.deep_work_blocks.map(b => `
-        <div class="flex items-center justify-between text-sm py-1">
-          <span class="text-gray-400 font-mono text-xs">${b.start}–${b.end}</span>
-          <span class="text-white">${b.project}</span>
-          <span class="text-cyan-400 text-xs">${fmtDur(b.duration_minutes)}</span>
-        </div>`).join('')}
-      </div>` : ''}
-    </div>
-
-    <!-- Week focus -->
-    <div class="card p-5">
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">This Week</h2>
-      <div class="flex items-center gap-6">
-        <div class="relative w-28 h-28">
-          <canvas id="chart-focus-week"></canvas>
-          <div class="absolute inset-0 flex items-center justify-center">
-            <span class="text-2xl font-bold" style="color:${weekColor}">${week.focus_score}</span>
-          </div>
-        </div>
-        <div class="space-y-2 text-sm">
-          ${focusStat('Total switches', week.switches, '#f59e0b')}
-          ${focusStat('Switches/day', week.switches_per_day, '#a78bfa')}
-          ${focusStat('Fragmentation', week.fragmentation_score + '/100', '#f87171')}
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Top transitions -->
-  ${week.top_transitions && week.top_transitions.length ? `
-  <div class="card p-5">
-    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Most Common Project Transitions (week)</h2>
-    <div class="space-y-2">
-      ${week.top_transitions.map((t, i) => {
-        const max = week.top_transitions[0].count;
-        const pct = t.count / max * 100;
-        return `<div class="flex items-center gap-3 text-sm">
-          <span class="text-gray-300 w-40 truncate text-right">${t.from_project}</span>
-          <span class="text-gray-500">→</span>
-          <span class="text-gray-300 w-40 truncate">${t.to_project}</span>
-          <div class="progress-bar flex-1"><div class="progress-fill" style="width:${pct}%;background:${COLORS[i%COLORS.length]}"></div></div>
-          <span class="text-gray-400 text-xs w-10 text-right">×${t.count}</span>
-        </div>`;
-      }).join('')}
-    </div>
-  </div>` : ''}`;
-
-  document.getElementById('page-focus').innerHTML = html;
-
-  [
-    { id: 'chart-focus-today', score: today.focus_score, color: todayColor },
-    { id: 'chart-focus-week', score: week.focus_score, color: weekColor },
-  ].forEach(({ id, score, color }) => {
-    makeChart(id, {
-      type: 'doughnut',
-      data: { datasets: [{ data: [score, 100-score], backgroundColor: [color, '#2d3548'], borderWidth: 0 }] },
-      options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
-    });
-  });
-}
-
-function focusStat(label, value, color) {
-  return `<div><span class="text-gray-500 text-xs">${label}</span><br><span class="font-semibold" style="color:${color}">${value}</span></div>`;
-}
-
-// ─── Data loading ──────────────────────────────────────────────────────────────
-async function loadStatus() {
   try {
-    state.status = await api('/api/status');
-    const b = document.getElementById('daemon-badge');
-    if (state.status.daemon_running) {
-      b.innerHTML = '<span class="text-xs text-green-400 flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-400 rounded-full pulse inline-block"></span>Daemon running</span>';
+    const st = await api('/api/status');
+    const pill = document.getElementById('status-pill');
+    const text = document.getElementById('status-text');
+    if (st.daemon_running) {
+      pill.classList.remove('stopped');
+      text.textContent = 'daemon running';
     } else {
-      b.innerHTML = '<span class="text-xs text-red-400 flex items-center gap-1"><span class="w-1.5 h-1.5 bg-red-400 rounded-full inline-block"></span>Daemon stopped</span>';
+      pill.classList.add('stopped');
+      text.textContent = 'daemon stopped';
     }
-  } catch {}
+  } catch {
+    document.getElementById('status-text').textContent = 'connecting…';
+  }
 }
 
-async function loadAll() {
-  document.getElementById('refresh-icon').style.transform = 'rotate(360deg)';
-  document.getElementById('refresh-icon').style.transition = 'transform 0.5s';
-  setTimeout(() => { document.getElementById('refresh-icon').style.transform = ''; document.getElementById('refresh-icon').style.transition = ''; }, 500);
-
-  await loadStatus();
-  const [today, week, projects, toil, events, focus] = await Promise.allSettled([
-    api('/api/stats/today'),
-    api('/api/stats/week'),
-    api('/api/projects'),
-    api('/api/toil'),
-    api('/api/events?limit=200'),
-    api('/api/focus'),
-  ]);
-  if (today.status === 'fulfilled') state.today = today.value;
-  if (week.status === 'fulfilled') state.week = week.value;
-  if (projects.status === 'fulfilled') state.projects = projects.value;
-  if (toil.status === 'fulfilled') state.toil = toil.value;
-  if (events.status === 'fulfilled') state.events = events.value;
-  if (focus.status === 'fulfilled') state.focus = focus.value;
-
-  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
-  renderPage(currentPage);
-}
-
-function renderPage(page) {
-  const fns = { dashboard: renderDashboard, projects: renderProjects, toil: renderToil, activity: renderActivity, focus: renderFocus };
-  if (fns[page]) fns[page]();
-}
-
-function refreshAll() { loadAll(); }
-
-function copyToClipboard(text) {
-  navigator.clipboard.writeText(text).then(() => {
-    const tip = document.createElement('div');
-    tip.textContent = 'Copied: ' + text;
-    tip.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#3b4fd4;color:white;padding:8px 16px;border-radius:8px;font-size:13px;z-index:9999;';
-    document.body.appendChild(tip);
-    setTimeout(() => tip.remove(), 2500);
-  }).catch(() => {});
-}
-
-// ─── Auto-refresh every 30s ──────────────────────────────────────────────────
-loadAll();
-setInterval(loadAll, 30000);
+updateTopbar();
+renderToday();
+setInterval(() => {
+  updateTopbar();
+  const view = document.querySelector('.nav-item.active')?.dataset?.view || 'today';
+  if (view === 'today') renderToday();
+}, 60000);
 </script>
 </body>
 </html>
