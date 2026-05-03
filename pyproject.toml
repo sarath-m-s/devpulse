@@ -15,7 +15,7 @@ keywords = ["developer", "productivity", "cli", "analytics"]
 [project.urls]
 Homepage = "https://github.com/sarath-m-s/devpulse"
 Repository = "https://github.com/sarath-m-s/devpulse"
-Issues = "https://github.com/sarathms/devpulse/issues"
+Issues = "https://github.com/sarath-m-s/devpulse/issues"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
