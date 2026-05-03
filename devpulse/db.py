@@ -716,6 +716,38 @@ def close_focus_session(
         )
 
 
+def close_orphaned_focus_sessions(cutoff_minutes: int = 120) -> int:
+    """Close any focus sessions that were left open (ended_at IS NULL).
+
+    Called on daemon startup to clean up sessions from previous runs.
+    Sessions older than cutoff_minutes get duration computed from started_at.
+    Returns count closed.
+    """
+    cutoff = (datetime.now() - timedelta(minutes=cutoff_minutes)).strftime("%Y-%m-%dT%H:%M:%S")
+    now_str = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    with _write_lock, _get_conn() as conn:
+        orphans = conn.execute(
+            "SELECT id, started_at FROM focus_sessions WHERE ended_at IS NULL",
+        ).fetchall()
+        count = 0
+        for row in orphans:
+            start_str = row["started_at"]
+            try:
+                start_dt = datetime.strptime(start_str[:19], "%Y-%m-%dT%H:%M:%S")
+                duration = max(0.0, (datetime.now() - start_dt).total_seconds() / 60)
+            except (ValueError, TypeError):
+                duration = 0.0
+            quality = min(100.0, (duration / 90.0) * 100)
+            conn.execute(
+                """UPDATE focus_sessions
+                   SET ended_at=?, duration_minutes=?, quality_score=?, was_warned=0
+                   WHERE id=?""",
+                (now_str, round(duration, 1), round(quality, 1), row["id"]),
+            )
+            count += 1
+    return count
+
+
 def get_focus_sessions(since: str, project: str | None = None) -> list[dict[str, Any]]:
     clauses = ["started_at >= ?"]
     params: list[Any] = [since]

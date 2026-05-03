@@ -154,7 +154,10 @@ def status() -> None:
     from devpulse.analyzers.time_tracker import compute_time_per_project
     time_data = compute_time_per_project(since=today_str)
     active_project = "—"
-    if time_data:
+    known = {p: v for p, v in time_data.items() if p != "unknown"}
+    if known:
+        active_project = max(known, key=lambda p: known[p]["total_minutes"])
+    elif time_data:
         active_project = max(time_data, key=lambda p: time_data[p]["total_minutes"])
 
     table = Table(show_header=False, box=box.SIMPLE, padding=(0, 2))
@@ -733,6 +736,10 @@ def recall(
             detail_lines.append(
                 f"\n  [dim]Fix took: {e['last_fix_duration_ms']/1000:.0f}s last time[/dim]"
             )
+        tip = _get_error_tip(e, em)
+        if tip:
+            detail_lines.append(f"\n  [bold yellow]💡 Tip:[/bold yellow] {tip}")
+
         console.print(
             Panel(
                 "\n".join(detail_lines),
@@ -741,6 +748,68 @@ def recall(
                 border_style="green",
             )
         )
+
+
+_HEURISTIC_TIPS: dict[str, list[str]] = {
+    "test": [
+        "Run a single test file to isolate the failure: `pytest path/to/test_file.py -v`",
+        "Check for missing fixtures or setup in conftest.py",
+        "Look for import errors by running `python -c \"import your_module\"`",
+        "Try `pytest --tb=long` for full tracebacks",
+    ],
+    "build": [
+        "Clear the build cache first: try `./gradlew clean`, `npm cache clean`, or `pip install --force-reinstall`",
+        "Check dependency versions in your lock file — a recent install may have broken something",
+        "Look for missing environment variables with `printenv | grep <your_prefix>`",
+        "Try a fresh virtual environment: `python -m venv .venv && pip install -e .`",
+    ],
+    "deploy": [
+        "Check git status for uncommitted changes that might conflict: `git status`",
+        "Verify you are on the right branch: `git branch`",
+        "Look for conflicts with `git diff HEAD`",
+        "For kubectl/terraform: verify your context with `kubectl config current-context` / `terraform workspace show`",
+    ],
+    "config": [
+        "Check your .env file exists and has the right values",
+        "Compare against .env.example to spot missing keys",
+        "Verify the config file path is correct for the current working directory",
+    ],
+    "runtime": [
+        "Add `--verbose` or `-v` to get more output from the failing command",
+        "Check recent file changes with `git diff HEAD~1`",
+        "Try running with a clean state — delete temp files, caches, or __pycache__",
+    ],
+}
+
+
+def _get_error_tip(error: dict, em: Any) -> str | None:
+    """Return a tip string for the given error record, using LLM if available."""
+    # Try LLM first
+    if em.llm:
+        try:
+            pattern = error.get("error_pattern", "")
+            fix_cmds = error.get("fix_commands", [])
+            fix_desc = error.get("fix_description", "")
+            prompt = (
+                f"A developer's command `{pattern}` keeps failing "
+                f"({error.get('occurrences', 1)}x).\n"
+                + (f"Known fix: {fix_desc}\n" if fix_desc else "")
+                + "Give ONE actionable debugging tip in under 25 words. No preamble."
+            )
+            from devpulse.llm.base import DEVPULSE_SYSTEM_PROMPT
+            resp = em.llm.analyze(prompt, system_prompt=DEVPULSE_SYSTEM_PROMPT)
+            tip = resp.content.strip()
+            if tip:
+                return tip
+        except Exception:
+            pass
+
+    # Fall back to heuristic tips by error type
+    err_type = error.get("error_type", "runtime")
+    tips = _HEURISTIC_TIPS.get(err_type, _HEURISTIC_TIPS["runtime"])
+    import hashlib
+    idx = int(hashlib.md5((error.get("error_pattern", "") or "").encode()).hexdigest(), 16) % len(tips)
+    return tips[idx]
 
 
 def _days_ago(ts: str) -> str:
@@ -850,6 +919,9 @@ def resume(
             box=box.ROUNDED,
         )
     )
+
+    if json_output:
+        return
 
     if checkout and ctx.get("branch"):
         import subprocess
@@ -1043,20 +1115,31 @@ def focus(
         now = datetime.now()
         for s in sessions:
             start_str = s.get("started_at", "")[:16].replace("T", " ")
-            end_str = (s.get("ended_at") or "now")[:16].replace("T", " ")
-            dur = s.get("duration_minutes")
-            dur_str = f"{int(dur or 0)//60}h {int(dur or 0)%60:02d}m"
-            active = "[bold green]active 🟢[/bold green]" if not s.get("ended_at") else ""
+            is_active = not s.get("ended_at")
+            if is_active:
+                try:
+                    start_dt = datetime.strptime(s["started_at"][:19], "%Y-%m-%dT%H:%M:%S")
+                    dur = (now - start_dt).total_seconds() / 60
+                except (ValueError, KeyError):
+                    dur = 0.0
+                end_str = "now"
+            else:
+                dur = s.get("duration_minutes") or 0.0
+                end_str = (s.get("ended_at") or "")[:16].replace("T", " ")
+            dur_str = f"{int(dur)//60}h {int(dur)%60:02d}m"
             score = s.get("quality_score") or 0
-            score_c = "green" if score >= 70 else "yellow"
+            if is_active and dur > 0:
+                score = min(100.0, (dur / 90.0) * 100)
+            score_c = "green" if score >= 70 else "yellow" if score >= 40 else "red"
             bar_len = round(score / 10)
             bar = "█" * bar_len + "░" * (10 - bar_len)
+            active_label = "[bold green]🟢 active[/bold green]" if is_active else f"score: {score:.0f}"
             lines.append(
-                f"  [dim]{start_str} - {end_str}[/dim]  "
+                f"  [dim]{start_str} – {end_str}[/dim]  "
                 f"[cyan]{s.get('project', '?'):<14}[/cyan]  "
                 f"[white]{dur_str}[/white]  "
                 f"[{score_c}]{bar}[/{score_c}]  "
-                f"{active or f'score: {score:.0f}'}"
+                f"{active_label}"
             )
 
         # Interruption summary
@@ -1235,12 +1318,35 @@ def projects_root(ctx: typer.Context) -> None:
         week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S")
         time_data = compute_time_per_project(since=week_ago)
 
-        table = Table("Project", "Path", "7d hours", "Last active", box=box.ROUNDED)
+        # Expand folder paths to their individual git repos
+        repo_rows: list[tuple[str, str]] = []
+        seen: set[str] = set()
         for p in paths:
-            proj_name = Path(p).name
+            p_path = Path(p).expanduser().resolve()
+            if (p_path / ".git").exists():
+                key = str(p_path)
+                if key not in seen:
+                    seen.add(key)
+                    repo_rows.append((p_path.name, str(p_path)))
+            elif p_path.is_dir():
+                try:
+                    for child in sorted(p_path.iterdir()):
+                        if child.is_dir() and (child / ".git").exists():
+                            key = str(child.resolve())
+                            if key not in seen:
+                                seen.add(key)
+                                repo_rows.append((child.name, str(child)))
+                except PermissionError:
+                    pass
+
+        table = Table("Project", "Path", "7d hours", box=box.ROUNDED)
+        for proj_name, proj_path in sorted(repo_rows, key=lambda r: -time_data.get(r[0], {}).get("total_minutes", 0)):
             stats = time_data.get(proj_name, {})
             hours = f"{stats.get('total_minutes', 0)/60:.1f}h"
-            table.add_row(proj_name, str(p), hours, "—")
+            table.add_row(proj_name, proj_path, hours)
+        if not repo_rows:
+            console.print("[dim]No projects tracked. Run: devpulse init --path ~/your-projects[/dim]")
+            return
         console.print(table)
 
 

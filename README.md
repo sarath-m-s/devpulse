@@ -1,23 +1,14 @@
-<p align="center">
-  <h1 align="center">DevPulse</h1>
-  <p align="center">A privacy-first developer productivity copilot that runs entirely on your machine.</p>
-</p>
 
-<p align="center">
-  <a href="#installation">Installation</a> &bull;
-  <a href="#features">Features</a> &bull;
-  <a href="#web-dashboard">Web Dashboard</a> &bull;
-  <a href="#cli-reference">CLI Reference</a> &bull;
-  <a href="#configuration">Configuration</a> &bull;
-  <a href="#contributing">Contributing</a>
-</p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-alpha-orange" alt="Alpha">
-  <img src="https://img.shields.io/badge/LLM-opt--in-yellow" alt="LLM opt-in">
-</p>
+# DevPulse
+
+A privacy-first developer productivity copilot that runs entirely on your machine.
+
+
+
+[Installation](#installation) • [Features](#features) • [Web Dashboard](#web-dashboard) • [CLI Reference](#cli-reference) • [Configuration](#configuration) • [Contributing](#contributing)
+
+
 
 ---
 
@@ -68,7 +59,7 @@ pip install git+https://github.com/sarathms/devpulse.git
 devpulse init --path ~/your-projects
 ```
 
-The `--path` flag tells DevPulse where your git repos live. It can be a parent directory containing multiple repos, or a single repo. You can pass it multiple times:
+The `--path` flag tells DevPulse where your git repos live. It can be a **parent directory containing multiple repos** (e.g. `~/work`, `~/upskill`) or a single repo. DevPulse automatically discovers all individual repos one level deep inside each folder. You can pass it multiple times:
 
 ```bash
 devpulse init --path ~/work --path ~/personal --path ~/oss
@@ -80,17 +71,25 @@ If you omit `--path`, DevPulse scans common directories (`~/work`, `~/projects`,
 devpulse projects add ~/another-folder
 ```
 
+To see all discovered repos and their activity:
+
+```bash
+devpulse projects
+```
+
 ### Shell hooks
 
 Shell hooks capture every command you run with zero perceptible latency (<50ms).
 
 **zsh:**
+
 ```bash
 echo 'source "$(devpulse shell-hook --zsh)"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
 **bash:**
+
 ```bash
 echo 'source "$(devpulse shell-hook --bash)"' >> ~/.bashrc
 source ~/.bashrc
@@ -148,6 +147,8 @@ devpulse focus --threshold 20   # notify after 20 min of continuous focus is bro
 
 The focus guard runs in the daemon. When you switch projects after a sustained focus session, it notifies you with the cost: *"You were focused for 42 minutes. Context switches typically cost ~23 minutes to recover."*
 
+When you switch to a non-terminal app (Slack, Chrome, etc.), the focus guard detects the active app name via `osascript` (macOS) so the notification shows the real destination — not "unknown".
+
 ### Workflow prediction
 
 DevPulse learns your per-project command sequences over time and predicts what you'll do next.
@@ -164,7 +165,7 @@ Predictions require at least 2 occurrences of a sequence. Confidence reaches 100
 
 ### Error memory
 
-Automatically records every failed command and links it to the commands that fixed it. Next time you hit the same error, DevPulse surfaces the fix.
+Automatically records every failed command and links it to the commands that fixed it. Next time you hit the same error, DevPulse surfaces the fix along with a debugging tip.
 
 ```bash
 devpulse recall                 # browse error history
@@ -173,6 +174,8 @@ devpulse recall --project myapp # filter by project
 devpulse recall --days 14       # limit to last 2 weeks
 devpulse recall --show-diff 5   # show git diff for error #5
 ```
+
+Each error entry shows: how many times it occurred, when it last happened, what commands fixed it, and a **debugging tip** (heuristic or LLM-generated when a provider is configured).
 
 ### Context restore
 
@@ -241,12 +244,14 @@ devpulse web
 
 DevPulse gathers data through four independent collectors, each toggleable in config:
 
-| Collector | Event types | How it works |
-|-----------|-------------|--------------|
-| **Shell** | `shell_cmd` | Shell hooks call `devpulse log-cmd` on every command with cwd, exit code, duration, and session ID. Project inferred from nearest `.git` parent. |
-| **Git** | `git_commit`, `git_branch_switch` | Polls registered project directories (default every 30s). Detects new commits (SHA, message, diff stats) and branch changes. |
-| **File watcher** | `file_change` | Uses `watchdog` to monitor config/infra files: `Dockerfile`, `docker-compose.yml`, `Makefile`, `*.tf`, `package.json`, `pyproject.toml`, lock files, and `.env` files. |
-| **Window tracker** | `window_focus` | Opt-in. Polls active window every 5s. macOS via `osascript`, Linux via `xdotool`. Only logs on window change. |
+
+| Collector          | Event types                       | How it works                                                                                                                                                           |
+| ------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Shell**          | `shell_cmd`                       | Shell hooks call `devpulse log-cmd` on every command with cwd, exit code, duration, and session ID. Project inferred from nearest `.git` parent.                       |
+| **Git**            | `git_commit`, `git_branch_switch` | Polls registered project directories (default every 30s). Detects new commits (SHA, message, diff stats) and branch changes.                                           |
+| **File watcher**   | `file_change`                     | Uses `watchdog` to monitor config/infra files: `Dockerfile`, `docker-compose.yml`, `Makefile`, `*.tf`, `package.json`, `pyproject.toml`, lock files, and `.env` files. |
+| **Window tracker** | `window_focus`                    | Opt-in. Polls active window every 5s. macOS via `osascript`, Linux via `xdotool`. Only logs on window change.                                                          |
+
 
 ---
 
@@ -272,15 +277,17 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 ### API endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/stats/today` | Today's stats: minutes, commands, commits, switches, focus score, projects, deep work blocks |
-| `GET /api/stats/week` | 7-day stats: hours, commits, switches/day, fragmentation, project breakdown |
-| `GET /api/projects` | All projects with hours, commits, percentage share |
-| `GET /api/toil` | Top 10 toil patterns with command sequences, count, wasted hours |
-| `GET /api/events?limit=N` | Recent events from the last 7 days |
-| `GET /api/focus` | Focus quality for today and week (scores, transitions, deep work blocks) |
-| `GET /api/status` | Daemon state, PID, DB path, version |
+
+| Endpoint                  | Description                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `GET /api/stats/today`    | Today's stats: minutes, commands, commits, switches, focus score, projects, deep work blocks |
+| `GET /api/stats/week`     | 7-day stats: hours, commits, switches/day, fragmentation, project breakdown                  |
+| `GET /api/projects`       | All projects with hours, commits, percentage share                                           |
+| `GET /api/toil`           | Top 10 toil patterns with command sequences, count, wasted hours                             |
+| `GET /api/events?limit=N` | Recent events from the last 7 days                                                           |
+| `GET /api/focus`          | Focus quality for today and week (scores, transitions, deep work blocks)                     |
+| `GET /api/status`         | Daemon state, PID, DB path, version                                                          |
+
 
 ---
 
@@ -288,52 +295,62 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 ### Core commands
 
-| Command | Description |
-|---------|-------------|
-| `devpulse init [--path DIR]` | First-time setup: creates config, detects projects, initializes DB. Pass `--path` to specify where your repos live. |
-| `devpulse start` | Start the background collector daemon |
-| `devpulse stop` | Stop the daemon |
-| `devpulse status` | Show daemon state, commands today, most active project |
-| `devpulse today` | Rich terminal dashboard for today |
-| `devpulse week` | Rich terminal summary for the last 7 days |
-| `devpulse web [--port N] [--no-open]` | Launch the web UI |
+
+| Command                               | Description                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `devpulse init [--path DIR]`          | First-time setup: creates config, detects projects, initializes DB. Pass `--path` to specify where your repos live. |
+| `devpulse start`                      | Start the background collector daemon                                                                               |
+| `devpulse stop`                       | Stop the daemon                                                                                                     |
+| `devpulse status`                     | Show daemon state, commands today, most active project                                                              |
+| `devpulse today`                      | Rich terminal dashboard for today                                                                                   |
+| `devpulse week`                       | Rich terminal summary for the last 7 days                                                                           |
+| `devpulse web [--port N] [--no-open]` | Launch the web UI                                                                                                   |
+
 
 ### Analysis commands
 
-| Command | Description |
-|---------|-------------|
-| `devpulse toil [--days N]` | List repeated command patterns (default: 14 days) |
-| `devpulse suggest [id]` | Generate an automation script for a toil pattern (requires LLM) |
-| `devpulse insights [--days N]` | LLM-powered productivity insights (default: 7 days) |
-| `devpulse next [project] [--run] [--list] [--dismiss ID]` | Show/run predicted next actions |
-| `devpulse recall [query] [--project P] [--days N] [--show-diff ID]` | Search error memory and past fixes |
-| `devpulse resume [project] [--open] [--checkout] [--json]` | Restore session context for a project |
-| `devpulse profile [--regenerate] [--type T] [--days N] [--json]` | Show developer fingerprint |
-| `devpulse focus [--guard on\|off] [--threshold N]` | Show focus sessions, configure focus guard |
+
+| Command                                                             | Description                                                     |
+| ------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `devpulse toil [--days N]`                                          | List repeated command patterns (default: 14 days)               |
+| `devpulse suggest [id]`                                             | Generate an automation script for a toil pattern (requires LLM) |
+| `devpulse insights [--days N]`                                      | LLM-powered productivity insights (default: 7 days)             |
+| `devpulse next [project] [--run] [--list] [--dismiss ID]`           | Show/run predicted next actions                                 |
+| `devpulse recall [query] [--project P] [--days N] [--show-diff ID]` | Search error memory and past fixes                              |
+| `devpulse resume [project] [--open] [--checkout] [--json]`          | Restore session context for a project                           |
+| `devpulse profile [--regenerate] [--type T] [--days N] [--json]`    | Show developer fingerprint                                      |
+| `devpulse focus [--guard on|off] [--threshold N]`                   | Show focus sessions, configure focus guard                      |
+
 
 ### Data commands
 
-| Command | Description |
-|---------|-------------|
-| `devpulse backfill [--shell auto\|zsh\|bash] [--limit N] [--no-git]` | Import shell history and git commits |
-| `devpulse export [--from DATE] [--to DATE] [--format json\|csv] [--output PATH]` | Export events |
-| `devpulse reset [--keep-config]` | Delete all collected data |
+
+| Command                                                                         | Description                          |
+| ------------------------------------------------------------------------------- | ------------------------------------ |
+| `devpulse backfill [--shell auto|zsh|bash] [--limit N] [--no-git]`              | Import shell history and git commits |
+| `devpulse export [--from DATE] [--to DATE] [--format json|csv] [--output PATH]` | Export events                        |
+| `devpulse reset [--keep-config]`                                                | Delete all collected data            |
+
 
 ### Config commands
 
-| Command | Description |
-|---------|-------------|
-| `devpulse config` | Print current configuration |
+
+| Command                             | Description                                     |
+| ----------------------------------- | ----------------------------------------------- |
+| `devpulse config`                   | Print current configuration                     |
 | `devpulse config set <key> <value>` | Set a config value (e.g. `llm.provider ollama`) |
-| `devpulse config providers` | Test all LLM providers and show availability |
+| `devpulse config providers`         | Test all LLM providers and show availability    |
+
 
 ### Project commands
 
-| Command | Description |
-|---------|-------------|
-| `devpulse projects` | List tracked projects with 7-day stats |
-| `devpulse projects add <path>` | Add a project directory to track |
-| `devpulse projects remove <name>` | Stop tracking a project |
+
+| Command                           | Description                                         |
+| --------------------------------- | --------------------------------------------------- |
+| `devpulse projects`               | List all discovered repos with 7-day activity stats |
+| `devpulse projects add <path>`    | Add a project directory to track                    |
+| `devpulse projects remove <name>` | Stop tracking a project                             |
+
 
 ---
 
@@ -341,13 +358,15 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 DevPulse works fully without an LLM — time tracking, toil detection, dashboards, focus scoring, workflow prediction, error memory, and the web UI all work offline. LLM is only used for `devpulse suggest`, `devpulse insights`, and optional summaries in `devpulse resume` and `devpulse profile`.
 
-| Provider | Model | Cost | Privacy | Setup |
-|----------|-------|------|---------|-------|
-| **Ollama** | llama3.1 (local) | Free | Local | `devpulse config set llm.provider ollama` |
-| **Groq** | llama-3.1-70b | Free tier | Cloud | `devpulse config set llm.provider groq` |
-| **Claude** | claude-sonnet-4-20250514 | ~$0.008/req | Cloud | `devpulse config set llm.provider claude` |
-| **OpenAI** | gpt-4o-mini | ~$0.004/req | Cloud | `devpulse config set llm.provider openai` |
-| **None** | — | — | — | `devpulse config set llm.provider none` |
+
+| Provider   | Model                    | Cost        | Privacy | Setup                                     |
+| ---------- | ------------------------ | ----------- | ------- | ----------------------------------------- |
+| **Ollama** | llama3.1 (local)         | Free        | Local   | `devpulse config set llm.provider ollama` |
+| **Groq**   | llama-3.1-70b            | Free tier   | Cloud   | `devpulse config set llm.provider groq`   |
+| **Claude** | claude-sonnet-4-20250514 | ~$0.008/req | Cloud   | `devpulse config set llm.provider claude` |
+| **OpenAI** | gpt-4o-mini              | ~$0.004/req | Cloud   | `devpulse config set llm.provider openai` |
+| **None**   | —                        | —           | —       | `devpulse config set llm.provider none`   |
+
 
 ### Ollama (recommended — free & local)
 
@@ -428,7 +447,7 @@ window_tracker = false          # opt-in, macOS/Linux X11 only
 [ui]
 color_theme = "auto"
 
-[intelligence]
+[v2]
 # Workflow prediction
 prediction_confidence_threshold = 0.3   # minimum confidence to show a prediction
 prediction_learning_days = 30           # days of history to learn from
@@ -471,12 +490,14 @@ DevPulse is designed to be privacy-first:
 
 ## Platform support
 
-| Platform | Shell hooks | Git collector | File watcher | Window tracker |
-|----------|-------------|---------------|--------------|----------------|
-| macOS | zsh, bash | Yes | Yes | Yes (osascript) |
-| Linux | zsh, bash | Yes | Yes | X11 only (xdotool) |
-| WSL | zsh, bash | Yes | Yes | No |
-| Windows | Use WSL | — | — | — |
+
+| Platform | Shell hooks | Git collector | File watcher | Window tracker     |
+| -------- | ----------- | ------------- | ------------ | ------------------ |
+| macOS    | zsh, bash   | Yes           | Yes          | Yes (osascript)    |
+| Linux    | zsh, bash   | Yes           | Yes          | X11 only (xdotool) |
+| WSL      | zsh, bash   | Yes           | Yes          | No                 |
+| Windows  | Use WSL     | —             | —            | —                  |
+
 
 ---
 
@@ -538,14 +559,16 @@ make test
 
 ### Makefile targets
 
-| Target | Description |
-|--------|-------------|
-| `make install` | Editable install (core deps only) |
-| `make dev` | Install with all optional + dev dependencies |
-| `make test` | Run pytest |
-| `make test-cov` | Run tests with coverage report |
-| `make lint` | Compile-check all Python files |
-| `make clean` | Remove build artifacts |
+
+| Target          | Description                                  |
+| --------------- | -------------------------------------------- |
+| `make install`  | Editable install (core deps only)            |
+| `make dev`      | Install with all optional + dev dependencies |
+| `make test`     | Run pytest                                   |
+| `make test-cov` | Run tests with coverage report               |
+| `make lint`     | Compile-check all Python files               |
+| `make clean`    | Remove build artifacts                       |
+
 
 ### Running tests
 

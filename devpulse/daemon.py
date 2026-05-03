@@ -69,6 +69,11 @@ def _run_daemon(config: dict[str, Any]) -> None:
 
     db.init_db()
 
+    # Close any focus sessions left open from a previous daemon run
+    orphans = db.close_orphaned_focus_sessions()
+    if orphans:
+        logger.info("Closed %d orphaned focus sessions from previous run", orphans)
+
     collectors = []
     cfg_collectors = config.get("collectors", {})
     projects = config.get("projects", {}).get("paths", [])
@@ -191,7 +196,7 @@ def _schedule_v2_tasks(config: dict[str, Any], stop_event: threading.Event) -> N
 
     # Focus guard — project-switch monitor (runs every 30 seconds)
     if v2.get("focus_guard_enabled", True):
-        from devpulse.analyzers.focus_guard import FocusGuard
+        from devpulse.analyzers.focus_guard import FocusGuard, _get_active_app_name
         guard = FocusGuard(config)
         _last_project: list[str] = [""]  # mutable container for closure
 
@@ -201,22 +206,29 @@ def _schedule_v2_tasks(config: dict[str, Any], stop_event: threading.Event) -> N
                 if stop_event.is_set():
                     break
                 try:
-                    now_str = (
-                        __import__("datetime").datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-                    )
+                    now_dt = __import__("datetime").datetime.now()
+                    now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%S")
+                    since_str = (
+                        now_dt - __import__("datetime").timedelta(seconds=90)
+                    ).strftime("%Y-%m-%dT%H:%M:%S")
+
                     recent = db.query_events(
                         event_type="shell_cmd",
-                        since=(
-                            __import__("datetime").datetime.now()
-                            - __import__("datetime").timedelta(seconds=60)
-                        ).strftime("%Y-%m-%dT%H:%M:%S"),
+                        since=since_str,
                     )
                     if not recent:
                         continue
                     latest_ev = recent[-1]
                     project = latest_ev.get("project") or "unknown"
+
+                    # If the shell went idle / unknown, try to find the active app
                     if project == "unknown":
-                        continue
+                        app = _get_active_app_name()
+                        if app:
+                            project = app
+                        else:
+                            continue  # still nothing useful
+
                     if project != _last_project[0] and _last_project[0]:
                         ts = latest_ev.get("timestamp", now_str)
                         guard.on_project_change(_last_project[0], project, ts)

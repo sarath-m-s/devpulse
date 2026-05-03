@@ -209,17 +209,31 @@ def _render_v2_focus_panel() -> None:
         focus_table.add_column("Duration", style="green", min_width=8)
         focus_table.add_column("Score")
 
+        now = datetime.now()
         for s in sessions[:6]:
-            start = (s.get("started_at") or "")[:16].replace("T", " ")
-            end = (s.get("ended_at") or "now")[:16].replace("T", " ")
-            dur = s.get("duration_minutes") or 0
+            start_str = (s.get("started_at") or "")[:16].replace("T", " ")
+            is_active = not s.get("ended_at")
+            if is_active:
+                # Compute elapsed duration live
+                try:
+                    start_dt = datetime.strptime(s["started_at"][:19], "%Y-%m-%dT%H:%M:%S")
+                    dur = (now - start_dt).total_seconds() / 60
+                except (ValueError, KeyError):
+                    dur = 0.0
+                end_display = "now"
+            else:
+                dur = s.get("duration_minutes") or 0
+                end_display = (s.get("ended_at") or "")[:16].replace("T", " ")
             score = s.get("quality_score") or 0
+            if is_active and dur > 0:
+                # Estimate live quality score for active session
+                score = min(100.0, (dur / 90.0) * 100)
             score_color = "green" if score >= 70 else "yellow" if score >= 40 else "red"
             bar_len = round(score / 10)
             bar = "█" * bar_len + "░" * (10 - bar_len)
-            active_str = " [bold green]active 🟢[/bold green]" if not s.get("ended_at") else ""
+            active_str = " [bold green]🟢 active[/bold green]" if is_active else ""
             focus_table.add_row(
-                f"{start}–{end}",
+                f"{start_str}–{end_display}",
                 s.get("project", "?")[:14],
                 _fmt_duration(dur),
                 f"[{score_color}]{bar}[/{score_color}]{active_str}",

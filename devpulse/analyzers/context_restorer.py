@@ -30,10 +30,15 @@ def _find_project_path(project: str) -> str | None:
     from devpulse.config import load_config
     cfg = load_config()
     for p in cfg.get("projects", {}).get("paths", []):
-        if Path(p).name == project:
+        p_path = Path(p)
+        # Direct match
+        if p_path.name == project or str(p_path.resolve()) == str(Path(project).resolve()):
             return p
-        if Path(p).resolve() == Path(project).resolve():
-            return p
+        # One level deep — for folders containing many repos
+        if p_path.is_dir() and not (p_path / ".git").exists():
+            candidate = p_path / project
+            if candidate.is_dir() and (candidate / ".git").exists():
+                return str(candidate)
     return None
 
 

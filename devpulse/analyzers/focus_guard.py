@@ -19,6 +19,43 @@ def _fmt_duration(minutes: float) -> str:
     return f"{h}h {m:02d}m" if h else f"{m}m"
 
 
+def _get_active_app_name() -> str | None:
+    """Return the name of the currently focused application (macOS/Linux).
+
+    Returns None if unavailable or if the app is a terminal (user is coding).
+    """
+    import sys
+    try:
+        if sys.platform == "darwin":
+            result = subprocess.run(
+                ["osascript", "-e",
+                 'tell application "System Events" to get name of first process whose frontmost is true'],
+                capture_output=True, text=True, timeout=2,
+            )
+            app = result.stdout.strip()
+            if not app:
+                return None
+            # Skip terminals — those are covered by shell_cmd events
+            _TERMINALS = {"Terminal", "iTerm2", "Alacritty", "kitty", "Hyper", "WezTerm", "Warp"}
+            if app in _TERMINALS:
+                return None
+            return app
+        elif sys.platform.startswith("linux"):
+            result = subprocess.run(
+                ["xdotool", "getactivewindow", "getwindowname"],
+                capture_output=True, text=True, timeout=2,
+            )
+            title = result.stdout.strip()
+            if not title:
+                return None
+            # Use last segment after " — " as app name (common convention)
+            app = title.split(" — ")[-1].strip()
+            return app or None
+    except Exception:
+        pass
+    return None
+
+
 def _send_notification(title: str, message: str, method: str) -> None:
     """Send a desktop or terminal notification."""
     if method in ("desktop", "both"):
