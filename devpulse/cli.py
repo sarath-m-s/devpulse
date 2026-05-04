@@ -49,6 +49,11 @@ def init(
         None, "--path", "-p",
         help="Root directory containing your git repos (can be repeated)",
     ),
+    skip_ollama: bool = typer.Option(
+        False,
+        "--skip-ollama",
+        help="Do not install Ollama or pull models (also: DEVPULSE_SKIP_OLLAMA=1)",
+    ),
 ) -> None:
     """Initialize DevPulse: create config, detect projects, show hook instructions."""
     DEVPULSE_DIR.mkdir(parents=True, exist_ok=True)
@@ -86,6 +91,11 @@ def init(
     db.init_db()
     console.print("[green]✓[/green] Database initialized")
     console.print(f"[green]✓[/green] Config at {DEVPULSE_DIR / 'config.toml'}")
+
+    from devpulse.bootstrap import run_ollama_bootstrap
+
+    run_ollama_bootstrap(console, cfg, skip=skip_ollama)
+    cfg = load_config()
 
     # Show detected projects
     final_paths = cfg["projects"].get("paths", [])
