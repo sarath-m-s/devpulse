@@ -200,10 +200,9 @@ def run_ollama_bootstrap(
     """If the user relies on Ollama, install the binary, start the server, and pull models."""
     if skip:
         return
-    for _env_key in ("GHOST_PULSE_SKIP_OLLAMA", "DEVPULSE_SKIP_OLLAMA"):
-        _v = os.environ.get(_env_key, "").strip().lower()
-        if _v in ("1", "true", "yes"):
-            return
+    _skip_raw = os.environ.get("GHOST_PULSE_SKIP_OLLAMA", "").strip().lower()
+    if _skip_raw in ("1", "true", "yes"):
+        return
 
     llm = cfg.get("llm") or {}
     provider = (llm.get("provider") or "ollama").strip().lower()
