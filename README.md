@@ -17,28 +17,27 @@ Ghost Pulse silently observes your workflow — shell commands, git activity, fi
 **No data leaves your machine. LLM analysis is opt-in and provider-agnostic.**
 
 ```
-╭─ Ghost Pulse · Thursday, April 23 ──────────────────────────────╮
+╭─ Ghost Pulse · Thursday, April 23 ────────────────────────────╮
 │                                                               │
-│  ⏱  Active: 6h 23m    📊 Commands: 147    🔀 Switches: 12   │
-│  🎯 Focus score: 72/100  (▲ 8 from yesterday)                │
+│  ⏱  Active: 6h 23m    📊 Commands: 147    🔀 Switches: 12     │
+│  🎯 Focus score: 72/100  (▲ 8 from yesterday)                 │
 │                                                               │
 ├─ Projects ────────────────────────────────────────────────────┤
 │                                                               │
-│  colearn       ████████████████████░░░░  3h 42m  (58%)       │
-│  ghost-pulse  ████████░░░░░░░░░░░░░░░  1h 31m  (24%)       │
-│  dsa-practice  ████░░░░░░░░░░░░░░░░░░░  0h 48m  (13%)       │
-│  other         ██░░░░░░░░░░░░░░░░░░░░░  0h 22m  ( 5%)       │
+│  colearn       ████████████████████░░░░  3h 42m  (58%)        │
+│  ghost-pulse  ████████░░░░░░░░░░░░░░░  1h 31m  (24%)          │
+│  other         ██░░░░░░░░░░░░░░░░░░░░░  0h 22m  ( 5%)         │
 │                                                               │
 ├─ Toil detected ───────────────────────────────────────────────┤
 │                                                               │
-│  🔄 docker compose down → up -d           ×8 today (×23 wk)  │
-│  🔄 git stash → checkout → pull → pop     ×3 today (×11 wk)  │
-│     Run: ghost suggest 1  to auto-fix                      │
+│  🔄 docker compose down → up -d           ×8 today (×23 wk)   │
+│  🔄 git stash → checkout → pull → pop     ×3 today (×11 wk)   │
+│     Run: ghost suggest 1  to auto-fix                         │
 │                                                               │
 ├─ Deep work blocks ────────────────────────────────────────────┤
 │                                                               │
 │  09:15 - 10:48  colearn  (1h 33m) ████████████████            │
-│  14:00 - 15:22  ghost-pulse (1h 22m) ██████████████              │
+│  14:00 - 15:22  ghost-pulse (1h 22m) ██████████████           │
 │                                                               │
 ╰───────────────────────────────────────────────────────────────╯
 ```
