@@ -1564,5 +1564,333 @@ def tui() -> None:
     DevPulseTUI().run()
 
 
+# ---------------------------------------------------------------------------
+# devpulse fix-done  — manually close a fix window and record the fix
+# ---------------------------------------------------------------------------
+
+@app.command(name="fix-done")
+def fix_done(
+    error_id: Optional[int] = typer.Argument(None, help="Error memory ID (from devpulse recall)"),
+    commands: Optional[list[str]] = typer.Option(None, "--cmd", "-c", help="Commands that fixed it (repeat flag)"),
+    note: Optional[str] = typer.Option(None, "--note", "-n", help="Short description of the fix"),
+    project: Optional[str] = typer.Option(None, "--project", "-p", help="Project name"),
+) -> None:
+    """Mark the current error as fixed and record what you did.
+
+    This closes any open fix windows for the project and saves the fix
+    commands to the RAG knowledge base for future suggestions.
+
+    Examples:
+      devpulse fix-done                          # closes most recent open window
+      devpulse fix-done 5 -c "pip install -e ." # close window for error #5
+      devpulse fix-done --note "updated deps"
+    """
+    db.init_db()
+    from devpulse.rag.fix_tracker import get_open_windows, close_fix_window
+    from devpulse.analyzers.error_memory import ErrorMemory
+
+    cfg = _get_cfg()
+    from devpulse.llm.factory import get_provider
+    em = ErrorMemory(llm_provider=get_provider(cfg))
+
+    open_wins = get_open_windows()
+    if not open_wins:
+        console.print("[yellow]No open fix windows. Run a failing command first to start tracking.[/yellow]")
+        return
+
+    # Filter by project if given
+    if project:
+        filtered = [w for w in open_wins if w.get("project") == project]
+        if not filtered:
+            console.print(f"[yellow]No open fix windows for project '{project}'.[/yellow]")
+            return
+        open_wins = filtered
+
+    # Filter by error_id if given
+    if error_id is not None:
+        filtered = [w for w in open_wins if w.get("error_memory_id") == error_id]
+        if not filtered:
+            console.print(f"[yellow]No open fix window for error #{error_id}.[/yellow]")
+            return
+        open_wins = filtered
+
+    # Close the most recent open window
+    win = open_wins[-1]
+    fix_cmds = list(commands) if commands else win.get("commands_after", [])
+    closed = close_fix_window(win["id"], resolution="manual")
+
+    # Save as fix record
+    ehash = win.get("error_hash", "")
+    em_row = db.get_error_memory_by_hash(ehash) if ehash else None
+    pattern = em_row.get("error_pattern", "") if em_row else ""
+
+    fix_summary = note
+    if not fix_summary and fix_cmds and em.llm:
+        try:
+            fix_summary = em.generate_fix_description(pattern, fix_cmds)
+        except Exception:
+            pass
+    if not fix_summary and fix_cmds:
+        fix_summary = f"Run: {' → '.join(fix_cmds[:3])}"
+
+    fix_record_id = db.upsert_fix_record(
+        error_hash=ehash,
+        error_pattern=pattern,
+        fix_summary=fix_summary,
+        fix_commands=fix_cmds,
+        project=win.get("project"),
+        source="manual",
+    )
+
+    # Update error_memory too
+    if em_row:
+        db.update_error_fix(
+            error_id=em_row["id"],
+            fix_commands=fix_cmds,
+            fix_description=fix_summary,
+        )
+
+    # Try to embed (best-effort)
+    try:
+        from devpulse.rag.embed_factory import get_embedding_provider
+        from devpulse.rag.vector_store import upsert_fix_embedding
+        embed = get_embedding_provider(cfg)
+        if embed.is_available() and pattern:
+            vec = embed.embed(pattern + " " + (fix_summary or ""))
+            upsert_fix_embedding(fix_record_id, vec)
+    except Exception:
+        pass
+
+    dur = closed.get("fix_duration_ms") if closed else None
+    dur_str = f" ({dur/1000:.0f}s to fix)" if dur else ""
+
+    console.print(
+        Panel(
+            f"  [green]✓[/green] Fix recorded for: [yellow]{pattern[:60] or 'error'}[/yellow]{dur_str}\n"
+            + (f"  [bold]Fix:[/bold] {fix_summary}\n" if fix_summary else "")
+            + (f"  [bold]Commands:[/bold] {' → '.join(fix_cmds[:3])}\n" if fix_cmds else "")
+            + f"\n  [dim]ID #{fix_record_id} — visible in: devpulse fix-history[/dim]",
+            title="[bold blue]DevPulse · Fix recorded[/bold blue]",
+            border_style="green",
+            box=box.ROUNDED,
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# devpulse fix-suggest — get RAG-powered fix suggestions for a command
+# ---------------------------------------------------------------------------
+
+@app.command(name="fix-suggest")
+def fix_suggest(
+    command: Optional[str] = typer.Argument(None, help="Failing command to look up"),
+    project: Optional[str] = typer.Option(None, "--project", "-p", help="Filter by project"),
+    top_k: int = typer.Option(3, "--top", help="Number of suggestions to show"),
+) -> None:
+    """Get AI-powered fix suggestions for a failing command.
+
+    Searches your fix history using exact match → fuzzy token overlap → semantic embeddings.
+
+    Examples:
+      devpulse fix-suggest "pytest tests/"
+      devpulse fix-suggest "docker build ." --project myapp
+      devpulse fix-suggest   # suggests for the most recently failed command
+    """
+    db.init_db()
+    cfg = _get_cfg()
+
+    # Auto-detect most recent failed command if not given
+    if not command:
+        from devpulse.analyzers.time_tracker import _parse_ts
+        today_str = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S")
+        events = db.query_events(event_type="shell_cmd", since=today_str, limit=200)
+        failed = [e for e in reversed(events) if e.get("data", {}).get("exit_code", 0) != 0]
+        if not failed:
+            console.print("[yellow]No recent failed commands found. Provide a command explicitly.[/yellow]")
+            return
+        command = failed[0]["data"]["cmd"]
+        console.print(f"[dim]Looking up fixes for most recent failure: [bold]{command[:60]}[/bold][/dim]\n")
+
+    from devpulse.rag.embed_factory import get_embedding_provider
+    from devpulse.rag.retriever import FixRetriever
+
+    rag_cfg = cfg.get("rag", {})
+    embed = get_embedding_provider(cfg)
+    retriever = FixRetriever(
+        embedding_provider=embed,
+        fuzzy_threshold=rag_cfg.get("fuzzy_threshold", 0.25),
+        semantic_threshold=rag_cfg.get("semantic_threshold", 0.60),
+    )
+
+    with console.status("[bold cyan]Searching fix knowledge base…[/bold cyan]"):
+        suggestions = retriever.suggest(command, project=project, top_k=top_k)
+
+    if not suggestions:
+        console.print(
+            Panel(
+                f"  [dim]No known fixes for: [yellow]{command[:60]}[/yellow][/dim]\n\n"
+                "  DevPulse learns from your fixes over time.\n"
+                "  After fixing a problem, run: [bold]devpulse fix-done[/bold]\n"
+                "  to record what you did so it can help next time.",
+                title="[bold blue]DevPulse · Fix suggest[/bold blue]",
+                border_style="blue",
+                box=box.ROUNDED,
+            )
+        )
+        return
+
+    tier_icons = {"exact": "🎯", "fuzzy": "🔍", "semantic": "🧠"}
+    lines = [f"  Suggestions for: [yellow]{command[:60]}[/yellow]\n"]
+    for i, s in enumerate(suggestions, 1):
+        icon = tier_icons.get(s["tier"], "•")
+        score_pct = f"{s['score']*100:.0f}%"
+        lines.append(
+            f"  [bold]{i}.[/bold] {icon} [dim]({s['tier']}, {score_pct} match)[/dim]"
+        )
+        if s.get("fix_summary"):
+            lines.append(f"     [green]{s['fix_summary']}[/green]")
+        if s.get("fix_commands"):
+            cmds = " → ".join(s["fix_commands"][:3])
+            if len(s["fix_commands"]) > 3:
+                cmds += "…"
+            lines.append(f"     [dim]Commands:[/dim] [cyan]{cmds}[/cyan]")
+        if s.get("project"):
+            lines.append(f"     [dim]Project:[/dim] {s['project']}")
+        lines.append("")
+
+    console.print(
+        Panel(
+            "\n".join(lines),
+            title="[bold blue]DevPulse · Fix suggestions[/bold blue]",
+            border_style="blue",
+            box=box.ROUNDED,
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# devpulse fix-history — browse the fix knowledge base
+# ---------------------------------------------------------------------------
+
+@app.command(name="fix-history")
+def fix_history(
+    project: Optional[str] = typer.Option(None, "--project", "-p", help="Filter by project"),
+    limit: int = typer.Option(20, "--limit", help="Number of records to show"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    """Browse your fix knowledge base.
+
+    Shows all recorded fixes — both manually recorded (devpulse fix-done)
+    and automatically captured by the fix window tracker.
+    """
+    db.init_db()
+    records = db.get_fix_records(project=project, limit=limit)
+
+    if json_output:
+        console.print(json.dumps(records, indent=2, default=str))
+        return
+
+    if not records:
+        msg = (
+            f"[dim]No fix records for project '{project}'.[/dim]"
+            if project
+            else "[dim]No fix records yet.\n\n  DevPulse automatically records fixes as you work.\n"
+               "  You can also run [bold]devpulse fix-done[/bold] after fixing an error.[/dim]"
+        )
+        console.print(Panel(msg, title="[bold blue]DevPulse · Fix history[/bold blue]", box=box.ROUNDED))
+        return
+
+    table = Table(
+        "ID", "Pattern", "Fix", "Commands", "Project", "Date",
+        box=box.ROUNDED,
+        show_lines=False,
+    )
+    for r in records:
+        pattern = (r.get("error_pattern") or "?")[:40]
+        fix_sum = (r.get("fix_summary") or "—")[:45]
+        cmds = " → ".join((r.get("fix_commands") or [])[:2])
+        if len(r.get("fix_commands") or []) > 2:
+            cmds += "…"
+        cmds = cmds[:35] or "—"
+        proj = r.get("project") or "—"
+        date = (r.get("created_at") or "")[:10]
+        src_icon = "👤" if r.get("source") == "manual" else "🤖"
+        table.add_row(
+            str(r.get("id", "?")),
+            f"{src_icon} {pattern}",
+            fix_sum,
+            cmds,
+            proj,
+            date,
+        )
+
+    console.print(Panel(table, title="[bold blue]DevPulse · Fix history[/bold blue]", box=box.ROUNDED))
+    console.print(f"[dim]👤 = manual (fix-done)  🤖 = auto-detected   Total: {len(records)}[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# devpulse fix-status — show open fix windows and RAG stats
+# ---------------------------------------------------------------------------
+
+@app.command(name="fix-status")
+def fix_status() -> None:
+    """Show open fix windows and fix knowledge base stats."""
+    db.init_db()
+    from devpulse.rag.fix_tracker import get_open_windows, expire_stale_windows
+
+    # Expire stale windows first
+    expired = expire_stale_windows()
+    open_wins = get_open_windows()
+    stats = db.get_fix_stats()
+
+    cfg = _get_cfg()
+    from devpulse.rag.embed_factory import get_embedding_provider
+    embed = get_embedding_provider(cfg)
+    embed_status = f"[green]● {embed.name}[/green]" if embed.is_available() else "[red]○ none[/red]"
+
+    lines = [
+        f"  [bold]Embedding provider:[/bold] {embed_status}\n",
+        f"  [bold]Fix records:[/bold]  {stats['fix_records_total']} total  "
+        f"({stats['fix_records_with_embedding']} with embeddings)\n",
+        f"  [bold]Fix windows:[/bold]  {stats['windows_total']} total  "
+        f"{stats['windows_resolved']} resolved  {stats['windows_open']} open",
+    ]
+    if stats.get("avg_fix_duration_ms"):
+        avg_s = stats["avg_fix_duration_ms"] / 1000
+        lines.append(f"  [bold]Avg fix time:[/bold] {avg_s:.0f}s")
+    if expired:
+        lines.append(f"\n  [dim]Expired {expired} stale window(s)[/dim]")
+
+    if open_wins:
+        lines.append(f"\n  [bold yellow]⏳ Open fix windows ({len(open_wins)}):[/bold yellow]")
+        for w in open_wins:
+            since = _days_ago(w.get("started_at", ""))
+            pattern = w.get("error_hash", "?")[:16]
+            # Look up pattern
+            em_row = db.get_error_memory_by_hash(w.get("error_hash", ""))
+            if em_row:
+                pattern = (em_row.get("error_pattern") or "?")[:45]
+            proj = w.get("project") or "?"
+            cmds_count = len(w.get("commands_after", []))
+            lines.append(
+                f"  [dim]•[/dim] [yellow]{pattern}[/yellow]  "
+                f"[dim]{proj} · {since} · {cmds_count} cmds tracked[/dim]"
+            )
+        lines.append(
+            f"\n  [dim]Close with: [bold]devpulse fix-done[/bold][/dim]"
+        )
+    else:
+        lines.append("\n  [dim]No open fix windows.[/dim]")
+
+    console.print(
+        Panel(
+            "\n".join(lines),
+            title="[bold blue]DevPulse · Fix status[/bold blue]",
+            border_style="blue",
+            box=box.ROUNDED,
+        )
+    )
+
+
 if __name__ == "__main__":
     app()

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "devpulse"
-version = "2.0.0"
+version = "3.1.0"
 description = "A privacy-first CLI developer productivity copilot with intelligence layer"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,7 +40,15 @@ dependencies = [
 claude = ["anthropic>=0.40"]
 openai = ["openai>=1.50"]
 groq = ["groq>=0.11"]
-all = ["anthropic>=0.40", "openai>=1.50", "groq>=0.11"]
+embeddings = [
+    "sentence-transformers>=2.7",
+    "numpy>=1.26",
+]
+rag = [
+    "sentence-transformers>=2.7",
+    "numpy>=1.26",
+]
+all = ["anthropic>=0.40", "openai>=1.50", "groq>=0.11", "sentence-transformers>=2.7", "numpy>=1.26"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",

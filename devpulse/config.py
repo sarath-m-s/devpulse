@@ -73,6 +73,23 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "profile_auto_generate": True,
         "profile_days": 30,
     },
+    "rag": {
+        "enabled": True,
+        "auto_track_fixes": True,
+        "fix_window_expiry_hours": 4,
+        "fuzzy_threshold": 0.25,
+        "semantic_threshold": 0.60,
+        "top_k": 3,
+        "embedding": {
+            "provider": "auto",
+            "local_model": "all-MiniLM-L6-v2",
+            "ollama_host": "",
+            "ollama_model": "nomic-embed-text",
+            "openai_api_key": "",
+            "openai_model": "text-embedding-3-small",
+            "openai_base_url": "",
+        },
+    },
 }
 
 

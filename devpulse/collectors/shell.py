@@ -49,14 +49,80 @@ def log_command(
             cfg = load_config()
             if cfg.get("v2", {}).get("auto_record_errors", True):
                 from devpulse.analyzers.error_memory import ErrorMemory
-                ErrorMemory().record_error(
+                error_id = ErrorMemory().record_error(
                     command=cmd,
                     exit_code=exit_code,
                     project=project or "",
                     session_id=session_id or "",
                 )
+                # v3: Open a fix window so we can track what the developer does next
+                if cfg.get("rag", {}).get("auto_track_fixes", True):
+                    from devpulse.rag.fix_tracker import open_fix_window
+                    open_fix_window(
+                        command=cmd,
+                        exit_code=exit_code,
+                        project=project or "",
+                        error_memory_id=error_id if error_id > 0 else None,
+                    )
         except Exception:
             pass  # never slow down or crash log-cmd
+    else:
+        # v3: A successful command may close an open fix window
+        try:
+            from devpulse.config import load_config
+            cfg = load_config()
+            if cfg.get("rag", {}).get("auto_track_fixes", True):
+                _maybe_close_fix_windows(cmd, project or "")
+        except Exception:
+            pass
+
+
+def _maybe_close_fix_windows(success_cmd: str, project: str) -> None:
+    """If there are open fix windows for this project, track this command and
+    attempt to close them now that a success has been observed."""
+    from devpulse.rag.fix_tracker import get_open_windows, track_command, close_fix_window
+    from devpulse.rag.fix_tracker import _WINDOW_EXPIRY_HOURS
+    from datetime import datetime, timedelta
+
+    open_wins = get_open_windows()
+    if not open_wins:
+        return
+    for win in open_wins:
+        # Only handle windows for the same project (or unset project)
+        if win.get("project") and project and win["project"] != project:
+            continue
+        track_command(win["id"], success_cmd)
+        # Heuristic: close the window — the success command is strong signal
+        close_fix_window(win["id"], resolution="auto")
+        # Persist as a fix record
+        _save_fix_record(win, success_cmd)
+
+
+def _save_fix_record(window: dict, final_cmd: str) -> None:
+    """Persist a completed fix window as a fix_record for future RAG retrieval."""
+    try:
+        from devpulse.analyzers.error_memory import _error_hash
+        from devpulse import db
+        cmds = window.get("commands_after", [])
+        if final_cmd not in cmds:
+            cmds = cmds + [final_cmd]
+        ehash = window.get("error_hash", "")
+        if not ehash:
+            return
+        # Look up the original error pattern
+        em_row = db.get_error_memory_by_hash(ehash)
+        pattern = em_row.get("error_pattern", "") if em_row else ""
+        fix_summary = em_row.get("fix_description") if em_row else None
+        db.upsert_fix_record(
+            error_hash=ehash,
+            error_pattern=pattern,
+            fix_summary=fix_summary,
+            fix_commands=cmds,
+            project=window.get("project"),
+            source="auto",
+        )
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------

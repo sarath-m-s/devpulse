@@ -162,6 +162,40 @@ def init_db() -> None:
                 was_warned           BOOLEAN DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_focus_sessions_project ON focus_sessions(project);
+
+            -- v3: RAG fix records — store rich fix data + embeddings
+            CREATE TABLE IF NOT EXISTS fix_records (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                error_hash    TEXT NOT NULL,
+                error_pattern TEXT NOT NULL,
+                fix_summary   TEXT,
+                fix_commands  JSON,
+                fix_diff      TEXT,
+                embedding     BLOB,
+                project       TEXT,
+                source        TEXT DEFAULT 'auto',
+                created_at    TEXT NOT NULL,
+                occurrences   INTEGER DEFAULT 1
+            );
+            CREATE INDEX IF NOT EXISTS idx_fix_records_hash    ON fix_records(error_hash);
+            CREATE INDEX IF NOT EXISTS idx_fix_records_project ON fix_records(project);
+
+            -- v3: Fix windows — track error→fix lifecycle
+            CREATE TABLE IF NOT EXISTS fix_windows (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                error_hash       TEXT NOT NULL,
+                error_memory_id  INTEGER,
+                project          TEXT,
+                started_at       TEXT NOT NULL,
+                closed_at        TEXT,
+                status           TEXT DEFAULT 'open',
+                commands_after   JSON,
+                files_changed    JSON,
+                commit_sha       TEXT,
+                fix_duration_ms  INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_fix_windows_hash   ON fix_windows(error_hash);
+            CREATE INDEX IF NOT EXISTS idx_fix_windows_status ON fix_windows(status);
         """)
 
 
@@ -769,3 +803,121 @@ def get_focus_sessions(since: str, project: str | None = None) -> list[dict[str,
             d["interruption_sources"] = []
         result.append(d)
     return result
+
+
+# ---------------------------------------------------------------------------
+# v3: Fix records helpers (RAG)
+# ---------------------------------------------------------------------------
+
+def upsert_fix_record(
+    error_hash: str,
+    error_pattern: str,
+    fix_summary: str | None = None,
+    fix_commands: list[str] | None = None,
+    fix_diff: str | None = None,
+    project: str | None = None,
+    source: str = "auto",
+    now: str | None = None,
+) -> int:
+    """Insert or update a fix record. Returns row id."""
+    ts = now or datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    with _write_lock, _get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id, occurrences FROM fix_records WHERE error_hash=?",
+            (error_hash,),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """UPDATE fix_records
+                   SET fix_summary=COALESCE(?,fix_summary),
+                       fix_commands=COALESCE(?,fix_commands),
+                       fix_diff=COALESCE(?,fix_diff),
+                       occurrences=occurrences+1
+                   WHERE id=?""",
+                (fix_summary, json.dumps(fix_commands) if fix_commands else None, fix_diff, existing["id"]),
+            )
+            return existing["id"]
+        else:
+            cur = conn.execute(
+                """INSERT INTO fix_records
+                   (error_hash, error_pattern, fix_summary, fix_commands, fix_diff, project, source, created_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (
+                    error_hash, error_pattern, fix_summary,
+                    json.dumps(fix_commands or []), fix_diff,
+                    project, source, ts,
+                ),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+
+def get_fix_records(
+    project: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
+    if project:
+        clauses.append("project=?")
+        params.append(project)
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    params.append(limit)
+    with _get_conn(readonly=True) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM fix_records {where} ORDER BY created_at DESC LIMIT ?",
+            params,
+        ).fetchall()
+    result = []
+    for row in rows:
+        d = dict(row)
+        d.pop("embedding", None)  # never return raw blob
+        try:
+            d["fix_commands"] = json.loads(d["fix_commands"]) if d["fix_commands"] else []
+        except (json.JSONDecodeError, TypeError):
+            d["fix_commands"] = []
+        result.append(d)
+    return result
+
+
+def get_fix_record_by_hash(error_hash: str) -> dict[str, Any] | None:
+    with _get_conn(readonly=True) as conn:
+        row = conn.execute(
+            "SELECT * FROM fix_records WHERE error_hash=? ORDER BY created_at DESC LIMIT 1",
+            (error_hash,),
+        ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    d.pop("embedding", None)
+    try:
+        d["fix_commands"] = json.loads(d["fix_commands"]) if d["fix_commands"] else []
+    except (json.JSONDecodeError, TypeError):
+        d["fix_commands"] = []
+    return d
+
+
+def get_fix_stats() -> dict[str, Any]:
+    """Return aggregate stats for the fix intelligence panel."""
+    with _get_conn(readonly=True) as conn:
+        total = conn.execute("SELECT COUNT(*) as n FROM fix_records").fetchone()["n"]
+        with_embed = conn.execute(
+            "SELECT COUNT(*) as n FROM fix_records WHERE embedding IS NOT NULL"
+        ).fetchone()["n"]
+        windows_total = conn.execute("SELECT COUNT(*) as n FROM fix_windows").fetchone()["n"]
+        windows_resolved = conn.execute(
+            "SELECT COUNT(*) as n FROM fix_windows WHERE status IN ('auto','manual','commit-resolved')"
+        ).fetchone()["n"]
+        windows_open = conn.execute(
+            "SELECT COUNT(*) as n FROM fix_windows WHERE status='open'"
+        ).fetchone()["n"]
+        avg_fix_ms = conn.execute(
+            "SELECT AVG(fix_duration_ms) as a FROM fix_windows WHERE fix_duration_ms IS NOT NULL"
+        ).fetchone()["a"]
+    return {
+        "fix_records_total": total,
+        "fix_records_with_embedding": with_embed,
+        "windows_total": windows_total,
+        "windows_resolved": windows_resolved,
+        "windows_open": windows_open,
+        "avg_fix_duration_ms": round(avg_fix_ms) if avg_fix_ms else None,
+    }
