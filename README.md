@@ -1,6 +1,6 @@
 
 
-# DevPulse
+# Ghost Pulse
 
 A privacy-first developer productivity copilot that runs entirely on your machine.
 
@@ -12,12 +12,12 @@ A privacy-first developer productivity copilot that runs entirely on your machin
 
 ---
 
-DevPulse silently observes your workflow — shell commands, git activity, file edits, and window focus — then surfaces actionable insights: time-per-project breakdowns, repeated toil patterns, context-switch scores, deep work blocks, and auto-generated automation scripts.
+Ghost Pulse silently observes your workflow — shell commands, git activity, file edits, and window focus — then surfaces actionable insights: time-per-project breakdowns, repeated toil patterns, context-switch scores, deep work blocks, and auto-generated automation scripts.
 
 **No data leaves your machine. LLM analysis is opt-in and provider-agnostic.**
 
 ```
-╭─ DevPulse · Thursday, April 23 ──────────────────────────────╮
+╭─ Ghost Pulse · Thursday, April 23 ──────────────────────────────╮
 │                                                               │
 │  ⏱  Active: 6h 23m    📊 Commands: 147    🔀 Switches: 12   │
 │  🎯 Focus score: 72/100  (▲ 8 from yesterday)                │
@@ -25,7 +25,7 @@ DevPulse silently observes your workflow — shell commands, git activity, file 
 ├─ Projects ────────────────────────────────────────────────────┤
 │                                                               │
 │  colearn       ████████████████████░░░░  3h 42m  (58%)       │
-│  devpulse      ████████░░░░░░░░░░░░░░░  1h 31m  (24%)       │
+│  ghost-pulse  ████████░░░░░░░░░░░░░░░  1h 31m  (24%)       │
 │  dsa-practice  ████░░░░░░░░░░░░░░░░░░░  0h 48m  (13%)       │
 │  other         ██░░░░░░░░░░░░░░░░░░░░░  0h 22m  ( 5%)       │
 │                                                               │
@@ -33,12 +33,12 @@ DevPulse silently observes your workflow — shell commands, git activity, file 
 │                                                               │
 │  🔄 docker compose down → up -d           ×8 today (×23 wk)  │
 │  🔄 git stash → checkout → pull → pop     ×3 today (×11 wk)  │
-│     Run: devpulse suggest 1  to auto-fix                      │
+│     Run: ghost suggest 1  to auto-fix                      │
 │                                                               │
 ├─ Deep work blocks ────────────────────────────────────────────┤
 │                                                               │
 │  09:15 - 10:48  colearn  (1h 33m) ████████████████            │
-│  14:00 - 15:22  devpulse (1h 22m) ██████████████              │
+│  14:00 - 15:22  ghost-pulse (1h 22m) ██████████████              │
 │                                                               │
 ╰───────────────────────────────────────────────────────────────╯
 ```
@@ -49,58 +49,58 @@ DevPulse silently observes your workflow — shell commands, git activity, file 
 
 - **Python** 3.10 or newer (3.11+ recommended)
 - **pip** (or another PEP 517 installer) for installing from PyPI
-- **Git** on `PATH` — used for project discovery, the git collector, and history backfill. `devpulse init` warns if it is missing.
+- **Git** on `PATH` — used for project discovery, the git collector, and history backfill. `ghost init` warns if it is missing.
 - **Operating system** — macOS and Linux are fully supported for the terminal UI, collectors, and daemon. Native Windows is limited; use **WSL** for the same experience as Linux.
 
 Optional, depending on features:
 
-- **Local LLM (default)** — With `llm.provider = "ollama"` (the default), first-time setup can install [Ollama](https://ollama.com), start it, and pull models. That needs **curl** or **wget** on macOS/Linux, or **winget** on Windows. Skip this with `devpulse init --skip-ollama` or `DEVPULSE_SKIP_OLLAMA=1`.
-- **Linux window focus** — If you enable `collectors.window_tracker`, install **xdotool** (X11). `devpulse init` mentions this on Linux when `xdotool` is not found.
-- **Semantic / local embeddings** — Install optional extras, e.g. `pip install devpulse[rag]`, for heavier ML dependencies when you use local embedding providers.
+- **Local LLM (default)** — With `llm.provider = "ollama"` (the default), first-time setup can install [Ollama](https://ollama.com), start it, and pull models. That needs **curl** or **wget** on macOS/Linux, or **winget** on Windows. Skip this with `ghost init --skip-ollama` or `GHOST_PULSE_SKIP_OLLAMA=1`.
+- **Linux window focus** — If you enable `collectors.window_tracker`, install **xdotool** (X11). `ghost init` mentions this on Linux when `xdotool` is not found.
+- **Semantic / local embeddings** — Install optional extras, e.g. `pip install ghost-pulse[rag]`, for heavier ML dependencies when you use local embedding providers.
 
 ---
 
 ## Installation
 
-From [PyPI](https://pypi.org/project/devpulse/):
+From [PyPI](https://pypi.org/project/ghost-pulse/):
 
 ```bash
-pip install devpulse
-devpulse init --path ~/your-projects
+pip install ghost-pulse
+ghost init --path ~/your-projects
 ```
 
 Or install directly from GitHub:
 
 ```bash
-pip install git+https://github.com/sarath-m-s/devpulse.git
-devpulse init --path ~/your-projects
+pip install git+https://github.com/sarath-m-s/ghost-pulse.git
+ghost init --path ~/your-projects
 ```
 
-### What `devpulse init` does
+### What `ghost init` does
 
-1. Creates `~/.devpulse/` and writes `config.toml` if needed.
+1. Creates `~/.ghost-pulse/` and writes `config.toml` if needed.
 2. Registers project paths (`--path` or auto-discovery under common home directories).
-3. Initializes the SQLite database (`~/.devpulse/devpulse.db`).
+3. Initializes the SQLite database (`~/.ghost-pulse/ghost-pulse.db`).
 4. Prints hints if **git** (and on Linux, **xdotool** for window tracking) is missing.
-5. If the LLM provider is **ollama** and the host is local, attempts to install Ollama, start the server, and pull default models — unless you pass **`--skip-ollama`** or set **`DEVPULSE_SKIP_OLLAMA=1`**.
-6. Shows shell-hook instructions and reminds you to run **`devpulse start`**.
+5. If the LLM provider is **ollama** and the host is local, attempts to install Ollama, start the server, and pull default models — unless you pass **`--skip-ollama`** or set **`GHOST_PULSE_SKIP_OLLAMA=1`**.
+6. Shows shell-hook instructions and reminds you to run **`ghost start`**.
 
-The `--path` flag tells DevPulse where your git repos live. It can be a **parent directory containing multiple repos** (e.g. `~/work`, `~/upskill`) or a single repo. DevPulse automatically discovers all individual repos one level deep inside each folder. You can pass it multiple times:
+The `--path` flag tells Ghost Pulse where your git repos live. It can be a **parent directory containing multiple repos** (e.g. `~/work`, `~/upskill`) or a single repo. Ghost Pulse automatically discovers all individual repos one level deep inside each folder. You can pass it multiple times:
 
 ```bash
-devpulse init --path ~/work --path ~/personal --path ~/oss
+ghost init --path ~/work --path ~/personal --path ~/oss
 ```
 
-If you omit `--path`, DevPulse scans common directories (`~/work`, `~/projects`, `~/code`, `~/src`, `~/upskill`, `~/dev`, `~/repos`, `~`) for git repos automatically. You can always add more later:
+If you omit `--path`, Ghost Pulse scans common directories (`~/work`, `~/projects`, `~/code`, `~/src`, `~/upskill`, `~/dev`, `~/repos`, `~`) for git repos automatically. You can always add more later:
 
 ```bash
-devpulse projects add ~/another-folder
+ghost projects add ~/another-folder
 ```
 
 To see all discovered repos and their activity:
 
 ```bash
-devpulse projects
+ghost projects
 ```
 
 ### Shell hooks
@@ -110,21 +110,21 @@ Shell hooks capture every command you run with zero perceptible latency (<50ms).
 **zsh:**
 
 ```bash
-echo 'source "$(devpulse shell-hook --zsh)"' >> ~/.zshrc
+echo 'source "$(ghost shell-hook --zsh)"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
 **bash:**
 
 ```bash
-echo 'source "$(devpulse shell-hook --bash)"' >> ~/.bashrc
+echo 'source "$(ghost shell-hook --bash)"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
 ### Start the daemon
 
 ```bash
-devpulse start
+ghost start
 ```
 
 The daemon runs in the background, polling for git commits, branch switches, file changes, and (optionally) window focus. It also handles periodic data cleanup.
@@ -132,8 +132,8 @@ The daemon runs in the background, polling for git commits, branch switches, fil
 ### Verify
 
 ```bash
-devpulse status
-devpulse today
+ghost status
+ghost today
 ```
 
 ---
@@ -142,11 +142,11 @@ devpulse today
 
 ### Time tracking
 
-DevPulse estimates active development time per project by analyzing inter-command gaps, git commit activity, and window focus events. Commands are categorized into `git`, `infrastructure`, `testing`, `build`, `coding`, and `other`. An idle timeout (default 15 min) prevents inflated numbers.
+Ghost Pulse estimates active development time per project by analyzing inter-command gaps, git commit activity, and window focus events. Commands are categorized into `git`, `infrastructure`, `testing`, `build`, `coding`, and `other`. An idle timeout (default 15 min) prevents inflated numbers.
 
 ```bash
-devpulse today          # today's per-project breakdown
-devpulse week           # 7-day summary with trends
+ghost today          # today's per-project breakdown
+ghost week           # 7-day summary with trends
 ```
 
 ### Toil detection
@@ -154,21 +154,21 @@ devpulse week           # 7-day summary with trends
 Finds repeated multi-command sequences (2-5 commands) you keep running manually. Patterns are normalized — variable parts like branch names, SHAs, file paths, and container IDs are stripped — so `git checkout feature-a` and `git checkout feature-b` are treated as the same pattern.
 
 ```bash
-devpulse toil --days 14         # show toil from last 2 weeks
-devpulse suggest 1              # generate a bash alias for pattern #1
+ghost toil --days 14         # show toil from last 2 weeks
+ghost suggest 1              # generate a bash alias for pattern #1
 ```
 
-`devpulse suggest` sends the pattern to your configured LLM and generates a reusable shell alias or script, with an interactive flow to name and save it.
+`ghost suggest` sends the pattern to your configured LLM and generates a reusable shell alias or script, with an interactive flow to name and save it.
 
 ### Focus & context switching
 
 Tracks how often you switch between projects and computes a focus score (0-100). Identifies deep work blocks — uninterrupted stretches on a single project — so you can see when you do your best work.
 
 ```bash
-devpulse today                  # includes focus score and deep work blocks
-devpulse focus                  # detailed focus sessions for today
-devpulse focus --guard on       # enable real-time focus guard notifications
-devpulse focus --threshold 20   # notify after 20 min of continuous focus is broken
+ghost today                  # includes focus score and deep work blocks
+ghost focus                  # detailed focus sessions for today
+ghost focus --guard on       # enable real-time focus guard notifications
+ghost focus --threshold 20   # notify after 20 min of continuous focus is broken
 ```
 
 The focus guard runs in the daemon. When you switch projects after a sustained focus session, it notifies you with the cost: *"You were focused for 42 minutes. Context switches typically cost ~23 minutes to recover."*
@@ -177,28 +177,28 @@ When you switch to a non-terminal app (Slack, Chrome, etc.), the focus guard det
 
 ### Workflow prediction
 
-DevPulse learns your per-project command sequences over time and predicts what you'll do next.
+Ghost Pulse learns your per-project command sequences over time and predicts what you'll do next.
 
 ```bash
-devpulse next                   # show predicted next commands for current project
-devpulse next colearn           # for a specific project
-devpulse next --run             # execute predictions immediately
-devpulse next --list            # list all learned routines
-devpulse next --dismiss 3       # stop suggesting routine #3
+ghost next                   # show predicted next commands for current project
+ghost next colearn           # for a specific project
+ghost next --run             # execute predictions immediately
+ghost next --list            # list all learned routines
+ghost next --dismiss 3       # stop suggesting routine #3
 ```
 
 Predictions require at least 2 occurrences of a sequence. Confidence reaches 100% at 20+ repetitions.
 
 ### Error memory
 
-Automatically records every failed command and links it to the commands that fixed it. Next time you hit the same error, DevPulse surfaces the fix along with a debugging tip.
+Automatically records every failed command and links it to the commands that fixed it. Next time you hit the same error, Ghost Pulse surfaces the fix along with a debugging tip.
 
 ```bash
-devpulse recall                 # browse error history
-devpulse recall "CORS"          # search for specific error types
-devpulse recall --project myapp # filter by project
-devpulse recall --days 14       # limit to last 2 weeks
-devpulse recall --show-diff 5   # show git diff for error #5
+ghost recall                 # browse error history
+ghost recall "CORS"          # search for specific error types
+ghost recall --project myapp # filter by project
+ghost recall --days 14       # limit to last 2 weeks
+ghost recall --show-diff 5   # show git diff for error #5
 ```
 
 Each error entry shows: how many times it occurred, when it last happened, what commands fixed it, and a **debugging tip** (heuristic or LLM-generated when a provider is configured).
@@ -208,10 +208,10 @@ Each error entry shows: how many times it occurred, when it last happened, what 
 Captures session snapshots when you stop working, so you can instantly re-orient when you come back.
 
 ```bash
-devpulse resume                 # list all projects with their last session
-devpulse resume colearn         # show full context for a specific project
-devpulse resume --open          # resume + open last file in $EDITOR
-devpulse resume --checkout      # also git checkout the saved branch
+ghost resume                 # list all projects with their last session
+ghost resume colearn         # show full context for a specific project
+ghost resume --open          # resume + open last file in $EDITOR
+ghost resume --checkout      # also git checkout the saved branch
 ```
 
 Snapshots include: git branch, last file edited, last command (with error indicator if it failed), uncommitted files, session duration, and an optional LLM-generated summary.
@@ -225,10 +225,10 @@ Analyzes your historical data to build a personal productivity profile with thre
 - **Focus pattern** — average deep work block duration, distractors, fragmentation trend
 
 ```bash
-devpulse profile                # show cached profile (generates if none exists)
-devpulse profile --regenerate   # force fresh analysis
-devpulse profile --type energy  # show only energy map
-devpulse profile --days 30      # use 30 days of data
+ghost profile                # show cached profile (generates if none exists)
+ghost profile --regenerate   # force fresh analysis
+ghost profile --type energy  # show only energy map
+ghost profile --days 30      # use 30 days of data
 ```
 
 ### LLM-powered insights
@@ -236,7 +236,7 @@ devpulse profile --days 30      # use 30 days of data
 Opt-in AI analysis that summarizes your activity into actionable productivity insights, including energy patterns, error analysis, and workflow fingerprint narrative.
 
 ```bash
-devpulse insights --days 7
+ghost insights --days 7
 ```
 
 ### Shell history backfill
@@ -244,7 +244,7 @@ devpulse insights --days 7
 Already have months of shell history? Import it in one shot:
 
 ```bash
-devpulse backfill --shell auto --limit 5000
+ghost backfill --shell auto --limit 5000
 ```
 
 Supports zsh extended history format and bash timestamped history. Project names are inferred from `cd` commands using forward/backward propagation. Also backfills git commit history from your tracked repos.
@@ -252,8 +252,8 @@ Supports zsh extended history format and bash timestamped history. Project names
 ### Data export
 
 ```bash
-devpulse export --from 2026-04-01 --to 2026-04-30 --format json
-devpulse export --format csv --output ~/activity.csv
+ghost export --from 2026-04-01 --to 2026-04-30 --format json
+ghost export --format csv --output ~/activity.csv
 ```
 
 ### Web dashboard
@@ -261,19 +261,19 @@ devpulse export --format csv --output ~/activity.csv
 A full-featured browser dashboard with no extra dependencies. See the [Web Dashboard](#web-dashboard) section below.
 
 ```bash
-devpulse web
+ghost web
 ```
 
 ---
 
 ## Data collectors
 
-DevPulse gathers data through four independent collectors, each toggleable in config:
+Ghost Pulse gathers data through four independent collectors, each toggleable in config:
 
 
 | Collector          | Event types                       | How it works                                                                                                                                                           |
 | ------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Shell**          | `shell_cmd`                       | Shell hooks call `devpulse log-cmd` on every command with cwd, exit code, duration, and session ID. Project inferred from nearest `.git` parent.                       |
+| **Shell**          | `shell_cmd`                       | Shell hooks call `ghost log-cmd` on every command with cwd, exit code, duration, and session ID. Project inferred from nearest `.git` parent.                       |
 | **Git**            | `git_commit`, `git_branch_switch` | Polls registered project directories (default every 30s). Detects new commits (SHA, message, diff stats) and branch changes.                                           |
 | **File watcher**   | `file_change`                     | Uses `watchdog` to monitor config/infra files: `Dockerfile`, `docker-compose.yml`, `Makefile`, `*.tf`, `package.json`, `pyproject.toml`, lock files, and `.env` files. |
 | **Window tracker** | `window_focus`                    | Opt-in. Polls active window every 5s. macOS via `osascript`, Linux via `xdotool`. Only logs on window change.                                                          |
@@ -286,16 +286,16 @@ DevPulse gathers data through four independent collectors, each toggleable in co
 A single-page dark-themed dashboard served by a stdlib-only HTTP server (no Flask/FastAPI needed).
 
 ```bash
-devpulse web                    # start on port 8765, auto-opens browser
-devpulse web --port 9000        # custom port
-devpulse web --no-open          # don't auto-open browser
+ghost web                    # start on port 8765, auto-opens browser
+ghost web --port 9000        # custom port
+ghost web --no-open          # don't auto-open browser
 ```
 
 ### Pages
 
 - **Dashboard** — Stat cards (active time, commands, commits, context switches, focus score), project distribution charts for today and this week, deep work blocks timeline
 - **Projects** — Time distribution doughnut, hours-per-project bar chart, detailed project table with progress bars
-- **Toil** — Total wasted time, repetition and time-wasted charts, pattern detail cards with copy-to-clipboard for `devpulse suggest`
+- **Toil** — Total wasted time, repetition and time-wasted charts, pattern detail cards with copy-to-clipboard for `ghost suggest`
 - **Activity** — Scrollable event feed showing commands, exit codes, projects, and timestamps
 - **Focus** — Today and weekly focus score gauges, context switch stats, deep work block list, most common project transitions
 
@@ -324,13 +324,13 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 | Command                               | Description                                                                                                         |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `devpulse init [--path DIR] [--skip-ollama]` | First-time setup: config, project paths, DB, optional tool hints, and (for local Ollama) install/pull models unless skipped. |
-| `devpulse start`                      | Start the background collector daemon                                                                               |
-| `devpulse stop`                       | Stop the daemon                                                                                                     |
-| `devpulse status`                     | Show daemon state, commands today, most active project                                                              |
-| `devpulse today`                      | Rich terminal dashboard for today                                                                                   |
-| `devpulse week`                       | Rich terminal summary for the last 7 days                                                                           |
-| `devpulse web [--port N] [--no-open]` | Launch the web UI                                                                                                   |
+| `ghost init [--path DIR] [--skip-ollama]` | First-time setup: config, project paths, DB, optional tool hints, and (for local Ollama) install/pull models unless skipped. |
+| `ghost start`                      | Start the background collector daemon                                                                               |
+| `ghost stop`                       | Stop the daemon                                                                                                     |
+| `ghost status`                     | Show daemon state, commands today, most active project                                                              |
+| `ghost today`                      | Rich terminal dashboard for today                                                                                   |
+| `ghost week`                       | Rich terminal summary for the last 7 days                                                                           |
+| `ghost web [--port N] [--no-open]` | Launch the web UI                                                                                                   |
 
 
 ### Analysis commands
@@ -338,14 +338,14 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 | Command                                                             | Description                                                     |
 | ------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `devpulse toil [--days N]`                                          | List repeated command patterns (default: 14 days)               |
-| `devpulse suggest [id]`                                             | Generate an automation script for a toil pattern (requires LLM) |
-| `devpulse insights [--days N]`                                      | LLM-powered productivity insights (default: 7 days)             |
-| `devpulse next [project] [--run] [--list] [--dismiss ID]`           | Show/run predicted next actions                                 |
-| `devpulse recall [query] [--project P] [--days N] [--show-diff ID]` | Search error memory and past fixes                              |
-| `devpulse resume [project] [--open] [--checkout] [--json]`          | Restore session context for a project                           |
-| `devpulse profile [--regenerate] [--type T] [--days N] [--json]`    | Show developer fingerprint                                      |
-| `devpulse focus [--guard on|off] [--threshold N]`                   | Show focus sessions, configure focus guard                      |
+| `ghost toil [--days N]`                                          | List repeated command patterns (default: 14 days)               |
+| `ghost suggest [id]`                                             | Generate an automation script for a toil pattern (requires LLM) |
+| `ghost insights [--days N]`                                      | LLM-powered productivity insights (default: 7 days)             |
+| `ghost next [project] [--run] [--list] [--dismiss ID]`           | Show/run predicted next actions                                 |
+| `ghost recall [query] [--project P] [--days N] [--show-diff ID]` | Search error memory and past fixes                              |
+| `ghost resume [project] [--open] [--checkout] [--json]`          | Restore session context for a project                           |
+| `ghost profile [--regenerate] [--type T] [--days N] [--json]`    | Show developer fingerprint                                      |
+| `ghost focus [--guard on|off] [--threshold N]`                   | Show focus sessions, configure focus guard                      |
 
 
 ### Data commands
@@ -353,9 +353,9 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 | Command                                                                         | Description                          |
 | ------------------------------------------------------------------------------- | ------------------------------------ |
-| `devpulse backfill [--shell auto|zsh|bash] [--limit N] [--no-git]`              | Import shell history and git commits |
-| `devpulse export [--from DATE] [--to DATE] [--format json|csv] [--output PATH]` | Export events                        |
-| `devpulse reset [--keep-config]`                                                | Delete all collected data            |
+| `ghost backfill [--shell auto|zsh|bash] [--limit N] [--no-git]`              | Import shell history and git commits |
+| `ghost export [--from DATE] [--to DATE] [--format json|csv] [--output PATH]` | Export events                        |
+| `ghost reset [--keep-config]`                                                | Delete all collected data            |
 
 
 ### Config commands
@@ -363,9 +363,9 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 | Command                             | Description                                     |
 | ----------------------------------- | ----------------------------------------------- |
-| `devpulse config`                   | Print current configuration                     |
-| `devpulse config set <key> <value>` | Set a config value (e.g. `llm.provider ollama`) |
-| `devpulse config providers`         | Test all LLM providers and show availability    |
+| `ghost config`                   | Print current configuration                     |
+| `ghost config set <key> <value>` | Set a config value (e.g. `llm.provider ollama`) |
+| `ghost config providers`         | Test all LLM providers and show availability    |
 
 
 ### Project commands
@@ -373,25 +373,25 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 | Command                           | Description                                         |
 | --------------------------------- | --------------------------------------------------- |
-| `devpulse projects`               | List all discovered repos with 7-day activity stats |
-| `devpulse projects add <path>`    | Add a project directory to track                    |
-| `devpulse projects remove <name>` | Stop tracking a project                             |
+| `ghost projects`               | List all discovered repos with 7-day activity stats |
+| `ghost projects add <path>`    | Add a project directory to track                    |
+| `ghost projects remove <name>` | Stop tracking a project                             |
 
 
 ---
 
 ## LLM providers
 
-DevPulse works fully without an LLM — time tracking, toil detection, dashboards, focus scoring, workflow prediction, error memory, and the web UI all work offline. LLM is only used for `devpulse suggest`, `devpulse insights`, and optional summaries in `devpulse resume` and `devpulse profile`.
+Ghost Pulse works fully without an LLM — time tracking, toil detection, dashboards, focus scoring, workflow prediction, error memory, and the web UI all work offline. LLM is only used for `ghost suggest`, `ghost insights`, and optional summaries in `ghost resume` and `ghost profile`.
 
 
 | Provider   | Model                    | Cost        | Privacy | Setup                                     |
 | ---------- | ------------------------ | ----------- | ------- | ----------------------------------------- |
-| **Ollama** | llama3.2:3b (local)      | Free        | Local   | `devpulse config set llm.provider ollama` |
-| **Groq**   | llama-3.1-70b            | Free tier   | Cloud   | `devpulse config set llm.provider groq`   |
-| **Claude** | claude-sonnet-4-20250514 | ~$0.008/req | Cloud   | `devpulse config set llm.provider claude` |
-| **OpenAI** | gpt-4o-mini              | ~$0.004/req | Cloud   | `devpulse config set llm.provider openai` |
-| **None**   | —                        | —           | —       | `devpulse config set llm.provider none`   |
+| **Ollama** | llama3.2:3b (local)      | Free        | Local   | `ghost config set llm.provider ollama` |
+| **Groq**   | llama-3.1-70b            | Free tier   | Cloud   | `ghost config set llm.provider groq`   |
+| **Claude** | claude-sonnet-4-20250514 | ~$0.008/req | Cloud   | `ghost config set llm.provider claude` |
+| **OpenAI** | gpt-4o-mini              | ~$0.004/req | Cloud   | `ghost config set llm.provider openai` |
+| **None**   | —                        | —           | —       | `ghost config set llm.provider none`   |
 
 
 ### Ollama (recommended — free & local)
@@ -399,41 +399,41 @@ DevPulse works fully without an LLM — time tracking, toil detection, dashboard
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull llama3.2:3b
-devpulse config set llm.provider ollama
+ghost config set llm.provider ollama
 ```
 
 ### Groq (free tier)
 
 ```bash
-devpulse config set llm.provider groq
-devpulse config set llm.groq.api_key gsk_xxxxx    # from console.groq.com
+ghost config set llm.provider groq
+ghost config set llm.groq.api_key gsk_xxxxx    # from console.groq.com
 ```
 
 ### Claude
 
 ```bash
-devpulse config set llm.provider claude
-devpulse config set llm.claude.api_key sk-ant-xxxxx    # or set ANTHROPIC_API_KEY
+ghost config set llm.provider claude
+ghost config set llm.claude.api_key sk-ant-xxxxx    # or set ANTHROPIC_API_KEY
 ```
 
 ### OpenAI
 
 ```bash
-devpulse config set llm.provider openai
-devpulse config set llm.openai.api_key sk-xxxxx    # or set OPENAI_API_KEY
+ghost config set llm.provider openai
+ghost config set llm.openai.api_key sk-xxxxx    # or set OPENAI_API_KEY
 ```
 
 ### Verify providers
 
 ```bash
-devpulse config providers
+ghost config providers
 ```
 
 ---
 
 ## Configuration
 
-Config file: `~/.devpulse/config.toml`
+Config file: `~/.ghost-pulse/config.toml`
 
 ```toml
 [general]
@@ -477,7 +477,7 @@ color_theme = "auto"
 # Workflow prediction
 prediction_confidence_threshold = 0.3   # minimum confidence to show a prediction
 prediction_learning_days = 30           # days of history to learn from
-auto_execute_predictions = false        # if true, 'devpulse next --run' skips confirmation
+auto_execute_predictions = false        # if true, 'ghost next --run' skips confirmation
 
 # Error memory
 error_retention_days = 180             # how long to keep error records
@@ -503,14 +503,14 @@ profile_days = 30                      # days of data to analyze
 
 ## Privacy
 
-DevPulse is designed to be privacy-first:
+Ghost Pulse is designed to be privacy-first:
 
-- **All data stays local** — stored in `~/.devpulse/devpulse.db` (SQLite with WAL mode)
-- **No telemetry** — the core app does not phone home; optional features may use the network (cloud LLM APIs, or downloading Ollama/models during `devpulse init` when using local Ollama)
+- **All data stays local** — stored in `~/.ghost-pulse/ghost-pulse.db` (SQLite with WAL mode)
+- **No telemetry** — the core app does not phone home; optional features may use the network (cloud LLM APIs, or downloading Ollama/models during `ghost init` when using local Ollama)
 - **LLM is optional** — time tracking, dashboards, and most features work offline; `suggest`, `insights`, and some summaries need a configured provider
 - **You choose the provider** — use Ollama for 100% local inference
 - **Data retention** — old events auto-deleted after 90 days (configurable)
-- **Full data ownership** — export or delete everything at any time with `devpulse export` / `devpulse reset`
+- **Full data ownership** — export or delete everything at any time with `ghost export` / `ghost reset`
 
 ---
 
@@ -530,12 +530,12 @@ DevPulse is designed to be privacy-first:
 ## Architecture
 
 ```
-~/.devpulse/
+~/.ghost-pulse/
 ├── config.toml          # User configuration
-├── devpulse.db          # SQLite database (WAL mode)
+├── ghost-pulse.db       # SQLite database (WAL mode)
 └── scripts/             # Generated automation scripts
 
-devpulse/
+ghost_pulse/
 ├── cli.py               # Typer CLI entry point
 ├── config.py            # Config management with auto-detection
 ├── db.py                # SQLite with thread-safe writes
@@ -578,8 +578,8 @@ devpulse/
 ## Development
 
 ```bash
-git clone https://github.com/sarath-m-s/devpulse.git
-cd devpulse
+git clone https://github.com/sarath-m-s/ghost-pulse.git
+cd ghost-pulse
 pip install -e ".[all,dev]"
 make test
 ```
@@ -618,7 +618,7 @@ Tests cover the database layer, all collectors, all analyzers, and the LLM provi
 4. Run `make test` — all tests must pass
 5. Open a pull request
 
-Please keep the core (`pip install devpulse`) dependency-free from paid LLM providers.
+Please keep the core (`pip install ghost-pulse`) dependency-free from paid LLM providers.
 
 ---
 

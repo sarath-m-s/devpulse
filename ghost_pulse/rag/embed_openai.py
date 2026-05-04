@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from devpulse.rag.embeddings import EmbeddingProvider
+from ghost_pulse.rag.embeddings import EmbeddingProvider
 
 _DEFAULT_MODEL = "text-embedding-3-small"
 _DIMENSION = 1536
@@ -29,7 +29,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             return self._client
         except ImportError as exc:
             raise RuntimeError(
-                "openai package not installed. Run: pip install 'devpulse[openai]'"
+                "openai package not installed. Run: pip install 'ghost-pulse[openai]'"
             ) from exc
 
     def embed(self, text: str) -> list[float]:

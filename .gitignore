@@ -26,5 +26,5 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# DevPulse user data (never commit)
-.devpulse/
+# Ghost Pulse user data (never commit)
+.ghost-pulse/

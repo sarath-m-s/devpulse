@@ -9,7 +9,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 from typing import Any
 
-from devpulse import db
+from ghost_pulse import db
 
 # ---------------------------------------------------------------------------
 # Normalisation patterns — strip variable parts from commands

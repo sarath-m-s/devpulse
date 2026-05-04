@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from devpulse.llm.base import LLMProvider, LLMResponse
+from ghost_pulse.llm.base import LLMProvider, LLMResponse
 
 
 class OpenAIProvider(LLMProvider):
@@ -29,7 +29,7 @@ class OpenAIProvider(LLMProvider):
                 self._client = OpenAI(**kwargs)
             except ImportError as exc:
                 raise RuntimeError(
-                    "openai package not installed. Run: pip install 'devpulse[openai]'"
+                    "openai package not installed. Run: pip install 'ghost-pulse[openai]'"
                 ) from exc
         return self._client
 

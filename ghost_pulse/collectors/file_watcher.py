@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
-from devpulse import db
+from ghost_pulse import db
 
 try:
     from watchdog.events import FileSystemEvent, PatternMatchingEventHandler
@@ -33,7 +33,7 @@ WATCHED_PATTERNS = [
 ]
 
 
-class _DevPulseHandler:  # type: ignore[misc]
+class _GhostPulseHandler:  # type: ignore[misc]
     """watchdog handler that logs file change events."""
 
     def __init__(self, project_name: str) -> None:
@@ -65,7 +65,7 @@ class FileWatcher:
         if not _WATCHDOG_AVAILABLE:
             if not self._warned:
                 import logging
-                logging.getLogger("devpulse").warning(
+                logging.getLogger("ghost_pulse").warning(
                     "watchdog not installed — file watcher disabled"
                 )
                 self._warned = True
@@ -77,7 +77,7 @@ class FileWatcher:
             if not p.is_dir():
                 continue
 
-            handler = _DevPulseHandler(project_name=p.name)
+            handler = _GhostPulseHandler(project_name=p.name)
 
             # Wrap with PatternMatchingEventHandler if watchdog supports it
             pattern_handler = PatternMatchingEventHandler(

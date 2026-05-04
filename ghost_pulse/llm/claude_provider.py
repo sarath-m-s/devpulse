@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from devpulse.llm.base import LLMProvider, LLMResponse
+from ghost_pulse.llm.base import LLMProvider, LLMResponse
 
 
 class ClaudeProvider(LLMProvider):
@@ -25,7 +25,7 @@ class ClaudeProvider(LLMProvider):
                 self._client = anthropic.Anthropic(api_key=self._api_key)
             except ImportError as exc:
                 raise RuntimeError(
-                    "anthropic package not installed. Run: pip install 'devpulse[claude]'"
+                    "anthropic package not installed. Run: pip install 'ghost-pulse[claude]'"
                 ) from exc
         return self._client
 

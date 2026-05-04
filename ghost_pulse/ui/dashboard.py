@@ -1,4 +1,4 @@
-"""Rich terminal dashboard for devpulse today / week views."""
+"""Rich terminal dashboard for ghost today / week views."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from rich.progress import BarColumn, Progress, TextColumn
 from rich.table import Table
 from rich.text import Text
 
-from devpulse import db
-from devpulse.analyzers import context_switch, time_tracker, toil as toil_analyzer
+from ghost_pulse import db
+from ghost_pulse.analyzers import context_switch, time_tracker, toil as toil_analyzer
 
 console = Console()
 
@@ -51,7 +51,7 @@ def _sparkline(values: list[float]) -> str:
 # ---------------------------------------------------------------------------
 
 def render_today(width: int | None = None) -> None:
-    """Print the full 'devpulse today' dashboard."""
+    """Print the full 'ghost today' dashboard."""
     now = datetime.now()
     today_str = now.replace(hour=0, minute=0, second=0, microsecond=0).strftime(
         "%Y-%m-%dT%H:%M:%S"
@@ -92,7 +92,7 @@ def render_today(width: int | None = None) -> None:
     console.print(
         Panel(
             stats_table,
-            title=f"[bold blue]DevPulse[/bold blue]  [dim]·[/dim]  [white]{date_str}[/white]",
+            title=f"[bold blue]Ghost Pulse[/bold blue]  [dim]·[/dim]  [white]{date_str}[/white]",
             border_style="blue",
             box=box.ROUNDED,
             padding=(1, 1),
@@ -152,7 +152,7 @@ def render_today(width: int | None = None) -> None:
             toil_table.add_row("🔄", cmds, f"×{p['count']}")
 
         hint = Text(
-            "  Run: devpulse suggest <id>  to generate an automation",
+            "  Run: ghost suggest <id>  to generate an automation",
             style="dim italic",
         )
         from rich.console import Group
@@ -197,7 +197,7 @@ def render_today(width: int | None = None) -> None:
 def _render_v2_focus_panel() -> None:
     """Render v2 focus sessions if any exist today."""
     try:
-        from devpulse import db as _db
+        from ghost_pulse import db as _db
         today_str = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).strftime(
             "%Y-%m-%dT%H:%M:%S"
         )
@@ -251,11 +251,11 @@ def _render_v2_focus_panel() -> None:
 def _render_v2_prediction_panel(today_str: str) -> None:
     """Render the top predicted next action for the most active project."""
     try:
-        from devpulse import db as _db
-        from devpulse.analyzers.workflow_predictor import WorkflowPredictor
+        from ghost_pulse import db as _db
+        from ghost_pulse.analyzers.workflow_predictor import WorkflowPredictor
 
         # Find most active project today
-        from devpulse.analyzers.time_tracker import compute_time_per_project
+        from ghost_pulse.analyzers.time_tracker import compute_time_per_project
         time_data = compute_time_per_project(since=today_str)
         if not time_data:
             return
@@ -287,7 +287,7 @@ def _render_v2_prediction_panel(today_str: str) -> None:
         content.append(cmds_str[:65], style="white")
         content.append(f"  ({conf_pct} confidence)", style="dim")
         content.append("\n  Run: ", style="dim")
-        content.append(f"devpulse next {top_project}", style="cyan")
+        content.append(f"ghost next {top_project}", style="cyan")
 
         console.print(
             Panel(content, title="[bold]⚡ Predicted next[/bold]", border_style="yellow", box=box.ROUNDED)
@@ -299,7 +299,7 @@ def _render_v2_prediction_panel(today_str: str) -> None:
 def _render_v2_errors_panel() -> None:
     """Render recurring errors panel if any exist."""
     try:
-        from devpulse.analyzers.error_memory import ErrorMemory
+        from ghost_pulse.analyzers.error_memory import ErrorMemory
         errors = ErrorMemory().get_frequent_errors(days=7, limit=4)
         recurring = [e for e in errors if e.get("occurrences", 1) >= 2]
         if not recurring:
@@ -319,7 +319,7 @@ def _render_v2_errors_panel() -> None:
             error_table.add_row(pattern, count, fix)
 
         from rich.text import Text
-        hint = Text("  Run: devpulse recall  to search error history", style="dim italic")
+        hint = Text("  Run: ghost recall  to search error history", style="dim italic")
         from rich.console import Group
         content = Group(error_table, hint)
 
@@ -335,7 +335,7 @@ def _render_v2_errors_panel() -> None:
 # ---------------------------------------------------------------------------
 
 def render_week() -> None:
-    """Print the 'devpulse week' summary."""
+    """Print the 'ghost week' summary."""
     now = datetime.now()
     week_ago = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -346,7 +346,7 @@ def render_week() -> None:
     console.print(
         Panel(
             "",
-            title=f"[bold blue]DevPulse · Weekly Summary · {now.strftime('%b %-d')}[/bold blue]",
+            title=f"[bold blue]Ghost Pulse · Weekly Summary · {now.strftime('%b %-d')}[/bold blue]",
             box=box.ROUNDED,
         )
     )

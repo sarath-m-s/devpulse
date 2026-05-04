@@ -10,9 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from devpulse import db
+from ghost_pulse import db
 
-# Successful runs of these `devpulse <sub>` commands should NOT auto-close a fix
+# Successful runs of these `ghost <sub>` commands should NOT auto-close a fix
 # window — they are lookups / dashboards, not the actual repair the user ran.
 _META_SKIP_FIX_CLOSE: frozenset[str] = frozenset({
     "fix-suggest",
@@ -32,50 +32,50 @@ _META_SKIP_FIX_CLOSE: frozenset[str] = frozenset({
 })
 
 
-def _parse_devpulse_cli_subcommand(parts: list[str]) -> str | None:
-    """If argv looks like invoking devpulse, return the first subcommand."""
+def _parse_ghost_cli_subcommand(parts: list[str]) -> str | None:
+    """If argv looks like invoking Ghost Pulse CLI, return the first subcommand."""
     if not parts:
         return None
-    # python -m devpulse.cli <sub> ...
+    # python -m ghost_pulse.cli <sub> ...
     if (
         len(parts) >= 4
         and parts[0] in ("python", "python3")
         and parts[1] == "-m"
-        and parts[2] in ("devpulse.cli", "devpulse")
+        and parts[2] == "ghost_pulse.cli"
     ):
         return parts[3]
-    # uv run devpulse <sub>
-    if len(parts) >= 4 and parts[0] == "uv" and parts[1] == "run" and parts[2] == "devpulse":
+    # uv run ghost <sub>
+    if len(parts) >= 4 and parts[0] == "uv" and parts[1] == "run" and parts[2] == "ghost":
         return parts[3]
-    # .../bin/devpulse <sub> or bare devpulse <sub>
+    # .../bin/ghost <sub> or bare ghost <sub>
     for i, p in enumerate(parts):
-        if Path(p).name == "devpulse" and i + 1 < len(parts):
+        if Path(p).name == "ghost" and i + 1 < len(parts):
             return parts[i + 1]
     return None
 
 
-def success_is_devpulse_meta_only(cmd: str) -> bool:
-    """True if this successful shell line is only DevPulse tooling (not a project fix)."""
+def success_is_ghost_cli_meta_only(cmd: str) -> bool:
+    """True if this successful shell line is only Ghost Pulse tooling (not a project fix)."""
     try:
         parts = shlex.split(cmd.strip())
     except ValueError:
         parts = cmd.split()
-    sub = _parse_devpulse_cli_subcommand(parts)
+    sub = _parse_ghost_cli_subcommand(parts)
     if sub is None:
         return False
     base = sub.strip("-").lower()
     if base in ("h", "help", "v", "version"):
         return True
     if base.startswith("-"):
-        return True  # devpulse --help etc.
+        return True  # ghost --help etc.
     return base in _META_SKIP_FIX_CLOSE
 
 
 def _filter_noise_fix_commands(cmds: list[str]) -> list[str]:
-    """Drop DevPulse introspection commands from stored fix steps."""
+    """Drop Ghost Pulse introspection commands from stored fix steps."""
     out: list[str] = []
     for c in cmds:
-        if success_is_devpulse_meta_only(c):
+        if success_is_ghost_cli_meta_only(c):
             continue
         out.append(c)
     return out
@@ -83,7 +83,7 @@ def _filter_noise_fix_commands(cmds: list[str]) -> list[str]:
 
 def _success_resolves_original_failure(success_cmd: str, failed_pattern: str) -> bool:
     """True when a successful command is a retry of the same workflow as the failure (normalized)."""
-    from devpulse.analyzers.toil import normalize_command
+    from ghost_pulse.analyzers.toil import normalize_command
     if not (failed_pattern or "").strip():
         return False
     return normalize_command(success_cmd) == normalize_command(failed_pattern)
@@ -123,10 +123,10 @@ def log_command(
     # v2: Record failed commands in error memory (non-blocking, best-effort)
     if exit_code != 0:
         try:
-            from devpulse.config import load_config
+            from ghost_pulse.config import load_config
             cfg = load_config()
             if cfg.get("v2", {}).get("auto_record_errors", True):
-                from devpulse.analyzers.error_memory import ErrorMemory
+                from ghost_pulse.analyzers.error_memory import ErrorMemory
                 error_id = ErrorMemory().record_error(
                     command=cmd,
                     exit_code=exit_code,
@@ -135,7 +135,7 @@ def log_command(
                 )
                 # v3: Open a fix window so we can track what the developer does next
                 if cfg.get("rag", {}).get("auto_track_fixes", True):
-                    from devpulse.rag.fix_tracker import open_fix_window
+                    from ghost_pulse.rag.fix_tracker import open_fix_window
                     open_fix_window(
                         command=cmd,
                         exit_code=exit_code,
@@ -148,7 +148,7 @@ def log_command(
     else:
         # v3: A successful command may close an open fix window
         try:
-            from devpulse.config import load_config
+            from ghost_pulse.config import load_config
             cfg = load_config()
             if cfg.get("rag", {}).get("auto_track_fixes", True):
                 _maybe_close_fix_windows(cmd, project or "")
@@ -159,14 +159,14 @@ def log_command(
 def _maybe_close_fix_windows(success_cmd: str, project: str) -> None:
     """If there are open fix windows for this project, track successes and close
     only when the success matches a retry of the original failing command (normalized)."""
-    from devpulse.rag.fix_tracker import (
+    from ghost_pulse.rag.fix_tracker import (
         get_open_windows,
         track_command,
         close_fix_window,
         capture_workdir_git_diff,
     )
 
-    if success_is_devpulse_meta_only(success_cmd):
+    if success_is_ghost_cli_meta_only(success_cmd):
         return
 
     open_wins = get_open_windows()
@@ -193,9 +193,9 @@ def _save_fix_record(
 ) -> None:
     """Persist a completed fix window as a fix_record for future RAG retrieval."""
     try:
-        from devpulse import db
+        from ghost_pulse import db
         if diff_fn is None:
-            from devpulse.rag.fix_tracker import capture_workdir_git_diff as diff_fn
+            from ghost_pulse.rag.fix_tracker import capture_workdir_git_diff as diff_fn
         raw_cmds = window.get("commands_after", [])
         if isinstance(raw_cmds, str):
             try:

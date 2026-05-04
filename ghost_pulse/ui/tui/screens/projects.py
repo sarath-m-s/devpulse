@@ -5,9 +5,9 @@ from __future__ import annotations
 from textual.app import ComposeResult
 from textual.widgets import Static
 
-from devpulse.ui.tui import data as tui_data
-from devpulse.ui.tui.widgets import Panel, StatCard, StatRow
-from devpulse.ui.tui.vim_scroll import VimDataTable, VimVerticalScroll
+from ghost_pulse.ui.tui import data as tui_data
+from ghost_pulse.ui.tui.widgets import Panel, StatCard, StatRow
+from ghost_pulse.ui.tui.vim_scroll import VimDataTable, VimVerticalScroll
 
 
 _COLORS = [

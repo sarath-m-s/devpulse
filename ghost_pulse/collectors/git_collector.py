@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from devpulse import db
+from ghost_pulse import db
 
 
 def _run_git(args: list[str], cwd: Path, timeout: int = 5) -> str:

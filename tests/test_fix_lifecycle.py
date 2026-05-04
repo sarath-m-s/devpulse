@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from devpulse import db
-from devpulse.collectors.shell import (
+from ghost_pulse import db
+from ghost_pulse.collectors.shell import (
     _success_resolves_original_failure,
     log_command,
 )
-from devpulse.rag.embeddings import NullEmbeddingProvider
-from devpulse.rag.fix_tracker import capture_workdir_git_diff
-from devpulse.rag.retriever import FixRetriever
+from ghost_pulse.rag.embeddings import NullEmbeddingProvider
+from ghost_pulse.rag.fix_tracker import capture_workdir_git_diff
+from ghost_pulse.rag.retriever import FixRetriever
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ class TestNormalizedRetry:
 
     def test_different_paths_may_still_match(self):
         # Both normalize to pytest <path> <path> style depending on normalizer
-        from devpulse.analyzers.toil import normalize_command
+        from ghost_pulse.analyzers.toil import normalize_command
 
         f = "pytest tests/a.py"
         s = "pytest tests/a.py"
@@ -92,7 +92,7 @@ class TestFullScenario:
         fail_cmd = "pytest test_sim.py"
         log_command(fail_cmd, str(tmp_repo), 1, 10, "sess")
 
-        from devpulse.rag.fix_tracker import get_open_windows
+        from ghost_pulse.rag.fix_tracker import get_open_windows
 
         assert len(get_open_windows()) == 1
 
@@ -116,7 +116,7 @@ class TestFullScenario:
 
 class TestRetrieverShowsDiff:
     def test_suggest_includes_fix_diff_field(self):
-        from devpulse.analyzers.error_memory import _error_hash
+        from ghost_pulse.analyzers.error_memory import _error_hash
 
         pat = "pytest test_sim.py"
         ehash = _error_hash(pat, 1)

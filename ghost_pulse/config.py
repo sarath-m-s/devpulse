@@ -1,4 +1,4 @@
-"""Config management — reads/writes ~/.devpulse/config.toml."""
+"""Config management — reads/writes ~/.ghost-pulse/config.toml."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ if sys.version_info >= (3, 11):
 else:
     import tomli as tomllib  # type: ignore[no-redef]
 
-DEVPULSE_DIR = Path.home() / ".devpulse"
-CONFIG_PATH = DEVPULSE_DIR / "config.toml"
+GHOST_PULSE_DIR = Path.home() / ".ghost-pulse"
+CONFIG_PATH = GHOST_PULSE_DIR / "config.toml"
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "general": {
@@ -118,7 +118,7 @@ def load_config() -> dict[str, Any]:
 
 def save_config(cfg: dict[str, Any]) -> None:
     """Write config to disk."""
-    DEVPULSE_DIR.mkdir(parents=True, exist_ok=True)
+    GHOST_PULSE_DIR.mkdir(parents=True, exist_ok=True)
     with open(CONFIG_PATH, "wb") as fh:
         tomli_w.dump(cfg, fh)
 

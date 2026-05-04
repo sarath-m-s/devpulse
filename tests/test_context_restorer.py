@@ -5,8 +5,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from devpulse import db
-from devpulse.analyzers.context_restorer import (
+from ghost_pulse import db
+from ghost_pulse.analyzers.context_restorer import (
     ContextRestorer,
     _fmt_time_away,
     _fmt_duration,
@@ -59,8 +59,8 @@ class TestCaptureSnapshot:
             )
 
         restorer = ContextRestorer(llm_provider=None)
-        with patch("devpulse.analyzers.context_restorer._run_git", return_value="main"), \
-             patch("devpulse.analyzers.context_restorer._find_project_path", return_value="/home/user/myproj"):
+        with patch("ghost_pulse.analyzers.context_restorer._run_git", return_value="main"), \
+             patch("ghost_pulse.analyzers.context_restorer._find_project_path", return_value="/home/user/myproj"):
             snap_id = restorer.capture_snapshot("myproj", "sess1")
 
         assert snap_id > 0
@@ -78,8 +78,8 @@ class TestCaptureSnapshot:
             session_id="sess1",
         )
         restorer = ContextRestorer(llm_provider=None)
-        with patch("devpulse.analyzers.context_restorer._run_git", return_value=""), \
-             patch("devpulse.analyzers.context_restorer._find_project_path", return_value=None):
+        with patch("ghost_pulse.analyzers.context_restorer._run_git", return_value=""), \
+             patch("ghost_pulse.analyzers.context_restorer._find_project_path", return_value=None):
             restorer.capture_snapshot("myproj", "sess1")
 
         snap = db.get_latest_snapshot("myproj")
@@ -94,8 +94,8 @@ class TestCaptureSnapshot:
             session_id="sess1",
         )
         restorer = ContextRestorer(llm_provider=None)
-        with patch("devpulse.analyzers.context_restorer._run_git", return_value=""), \
-             patch("devpulse.analyzers.context_restorer._find_project_path", return_value=None):
+        with patch("ghost_pulse.analyzers.context_restorer._run_git", return_value=""), \
+             patch("ghost_pulse.analyzers.context_restorer._find_project_path", return_value=None):
             restorer.capture_snapshot("myproj", "sess1")
 
         snap = db.get_latest_snapshot("myproj")
@@ -185,7 +185,7 @@ class TestCaptureOnGap:
             session_id="oldsess",
         )
         restorer = ContextRestorer(llm_provider=None)
-        with patch("devpulse.analyzers.context_restorer._run_git", return_value=""), \
-             patch("devpulse.analyzers.context_restorer._find_project_path", return_value=None):
+        with patch("ghost_pulse.analyzers.context_restorer._run_git", return_value=""), \
+             patch("ghost_pulse.analyzers.context_restorer._find_project_path", return_value=None):
             result = restorer.capture_on_gap(gap_minutes=30)
         assert "oldproj" in result

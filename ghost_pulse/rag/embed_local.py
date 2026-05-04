@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from devpulse.rag.embeddings import EmbeddingProvider
+from ghost_pulse.rag.embeddings import EmbeddingProvider
 
 _MODEL_NAME = "all-MiniLM-L6-v2"
 _DIMENSION = 384
@@ -24,7 +24,7 @@ class LocalEmbeddingProvider(EmbeddingProvider):
         except ImportError as exc:
             raise RuntimeError(
                 "sentence-transformers not installed. "
-                "Run: pip install 'devpulse[embeddings]'"
+                "Run: pip install 'ghost-pulse[embeddings]'"
             ) from exc
 
     def embed(self, text: str) -> list[float]:

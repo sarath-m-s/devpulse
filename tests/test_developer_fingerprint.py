@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from devpulse import db
-from devpulse.analyzers.developer_fingerprint import DeveloperFingerprint
+from ghost_pulse import db
+from ghost_pulse.analyzers.developer_fingerprint import DeveloperFingerprint
 
 
 @pytest.fixture(autouse=True)

@@ -1,4 +1,4 @@
-"""Insights screen — LLM workflow insights, Ask DevPulse, quick queries."""
+"""Insights screen — LLM workflow insights, Ask Ghost Pulse, quick queries."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Button, Input, Static
 
-from devpulse.ui.tui import data as tui_data
-from devpulse.ui.tui.widgets import Panel, StatCard, StatRow
-from devpulse.ui.tui.vim_scroll import VimVerticalScroll
+from ghost_pulse.ui.tui import data as tui_data
+from ghost_pulse.ui.tui.widgets import Panel, StatCard, StatRow
+from ghost_pulse.ui.tui.vim_scroll import VimVerticalScroll
 
 
 _QUICK_QUERIES = [
@@ -77,7 +77,7 @@ class InsightsScreen(VimVerticalScroll):
         )
         with Panel("WORKFLOW INSIGHTS — [R] regenerate"):
             yield Static("[dim]Loading insights from LLM…[/dim]", id="ins-list", classes="muted")
-        with Panel("ASK DEVPULSE"):
+        with Panel("ASK GHOST PULSE"):
             yield Input(
                 placeholder="e.g. What project should I focus on tomorrow?",
                 id="ins-input",
@@ -127,7 +127,7 @@ class InsightsScreen(VimVerticalScroll):
             self.query_one("#ins-list", Static).update(
                 "[#e87b5a]●[/#e87b5a] No LLM provider available.\n"
                 "[dim]Configure one in the Config screen (9) or run "
-                "`devpulse config set llm.provider ollama`[/dim]"
+                "`ghost config set llm.provider ollama`[/dim]"
             )
             self._insights_loaded = False  # allow retry once provider is configured
             return

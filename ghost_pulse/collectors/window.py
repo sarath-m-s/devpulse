@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 
-from devpulse import db
+from ghost_pulse import db
 
 
 def _get_active_window_macos() -> tuple[str, str] | None:
@@ -88,7 +88,7 @@ class WindowTracker:
 
         if not self._available:
             import logging
-            logging.getLogger("devpulse").warning(
+            logging.getLogger("ghost_pulse").warning(
                 "Window tracker unavailable on this platform — disabling"
             )
             return

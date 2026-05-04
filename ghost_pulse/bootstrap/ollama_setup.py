@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 import httpx
 from rich.console import Console
 
-# Keep in sync with defaults in devpulse.config and OllamaProvider / embed_ollama
+# Keep in sync with defaults in ghost_pulse.config and OllamaProvider / embed_ollama
 DEFAULT_LLM_MODEL = "llama3.2:3b"
 DEFAULT_EMBED_MODEL = "nomic-embed-text"
 
@@ -87,7 +87,7 @@ def _install_ollama(console: Console) -> bool:
             return r.returncode == 0
         console.print(
             "[yellow]Install Ollama from https://ollama.com/download/windows[/yellow], "
-            "then run [bold]devpulse init[/bold] again."
+            "then run [bold]ghost init[/bold] again."
         )
         return False
 
@@ -143,7 +143,7 @@ def _wait_for_server(host: str, console: Console) -> bool:
     console.print(
         f"[yellow]Ollama did not respond at {host} within {_STARTUP_TIMEOUT_SEC}s.[/yellow]\n"
         "  Start it manually ([bold]ollama serve[/bold] or the Ollama app), then run "
-        "[bold]devpulse init[/bold] again if pulls did not complete."
+        "[bold]ghost init[/bold] again if pulls did not complete."
     )
     return False
 
@@ -175,7 +175,7 @@ def pull_models(
 
     ollama_bin = _find_ollama_bin()
     if not ollama_bin:
-        console.print("[yellow]ollama CLI not found on PATH after install — open a new terminal and run devpulse init again.[/yellow]")
+        console.print("[yellow]ollama CLI not found on PATH after install — open a new terminal and run ghost init again.[/yellow]")
         return False
 
     ok = True
@@ -200,12 +200,10 @@ def run_ollama_bootstrap(
     """If the user relies on Ollama, install the binary, start the server, and pull models."""
     if skip:
         return
-    if os.environ.get("DEVPULSE_SKIP_OLLAMA", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    ):
-        return
+    for _env_key in ("GHOST_PULSE_SKIP_OLLAMA", "DEVPULSE_SKIP_OLLAMA"):
+        _v = os.environ.get(_env_key, "").strip().lower()
+        if _v in ("1", "true", "yes"):
+            return
 
     llm = cfg.get("llm") or {}
     provider = (llm.get("provider") or "ollama").strip().lower()
@@ -231,7 +229,7 @@ def run_ollama_bootstrap(
     if not _find_ollama_bin():
         console.print(
             "[yellow]Ollama was installed but [bold]ollama[/bold] is not on PATH in this shell. "
-            "Open a new terminal and run [bold]devpulse init[/bold] again.[/yellow]"
+            "Open a new terminal and run [bold]ghost init[/bold] again.[/yellow]"
         )
         return
 

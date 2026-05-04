@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from devpulse import db
+from ghost_pulse import db
 
 
 def _run_git(cwd: str, *args: str) -> str:
@@ -27,7 +27,7 @@ def _run_git(cwd: str, *args: str) -> str:
 
 def _find_project_path(project: str) -> str | None:
     """Try to locate the project directory by scanning tracked projects and common dirs."""
-    from devpulse.config import load_config
+    from ghost_pulse.config import load_config
     cfg = load_config()
     for p in cfg.get("projects", {}).get("paths", []):
         p_path = Path(p)
@@ -160,8 +160,8 @@ class ContextRestorer:
             "Be specific and actionable. No preamble."
         )
         try:
-            from devpulse.llm.base import DEVPULSE_SYSTEM_PROMPT
-            resp = self.llm.analyze(prompt, system_prompt=DEVPULSE_SYSTEM_PROMPT)
+            from ghost_pulse.llm.base import GHOST_PULSE_SYSTEM_PROMPT
+            resp = self.llm.analyze(prompt, system_prompt=GHOST_PULSE_SYSTEM_PROMPT)
             return resp.content.strip()
         except Exception:
             return None

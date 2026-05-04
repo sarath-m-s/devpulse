@@ -6,7 +6,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from typing import Any
 
-from devpulse import db
+from ghost_pulse import db
 
 
 def _parse_ts(ts: str) -> datetime | None:
@@ -166,7 +166,7 @@ class DeveloperFingerprint:
 
     def generate_focus_pattern(self, days: int = 30) -> dict[str, Any]:
         """Analyze deep work and context switching patterns."""
-        from devpulse.analyzers.context_switch import compute_context_switches
+        from ghost_pulse.analyzers.context_switch import compute_context_switches
 
         since = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S")
         ctx = compute_context_switches(since=since)
@@ -284,7 +284,7 @@ class DeveloperFingerprint:
             return summary
 
         v2_prompt = (
-            "You are DevPulse, a personal developer productivity assistant analyzing the "
+            "You are Ghost Pulse, a personal developer productivity assistant analyzing the "
             "developer's workflow data. You have access to their energy patterns, error history, "
             "focus sessions, and workflow sequences.\n\n"
             "Provide insights that are:\n"

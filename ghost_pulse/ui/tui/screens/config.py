@@ -8,9 +8,9 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Button, Select, Static, Switch
 
-from devpulse.ui.tui import data as tui_data
-from devpulse.ui.tui.widgets import Panel, StatCard, StatRow
-from devpulse.ui.tui.vim_scroll import VimVerticalScroll
+from ghost_pulse.ui.tui import data as tui_data
+from ghost_pulse.ui.tui.widgets import Panel, StatCard, StatRow
+from ghost_pulse.ui.tui.vim_scroll import VimVerticalScroll
 
 
 _PROVIDER_OPTIONS = [
@@ -174,7 +174,7 @@ class ConfigScreen(VimVerticalScroll):
             return
 
         self.query_one("#cfg-title", Static).update(
-            "\n[bold #f7f8f8]Configuration[/]  [dim]~/.devpulse/config.toml[/dim]\n"
+            "\n[bold #f7f8f8]Configuration[/]  [dim]~/.ghost-pulse/config.toml[/dim]\n"
         )
 
         cards = list(self.query(StatCard))

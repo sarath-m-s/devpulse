@@ -1,4 +1,4 @@
-"""DevPulse TUI — k9s-inspired interactive terminal dashboard."""
+"""Ghost Pulse TUI — k9s-inspired interactive terminal dashboard."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import ContentSwitcher, Static
 
-from devpulse.ui.tui import data as tui_data
+from ghost_pulse.ui.tui import data as tui_data
 
 
 _TAB_ORDER = [
@@ -105,10 +105,10 @@ class KeyBar(Static):
         self.update(self.render_hint(tab_num, tab_title))
 
 
-class DevPulseTUI(App):
-    """The main DevPulse interactive TUI app."""
+class GhostPulseTUI(App):
+    """The main Ghost Pulse interactive TUI app."""
 
-    TITLE = "DevPulse"
+    TITLE = "Ghost Pulse"
     SUB_TITLE = "k9s-style dashboard"
 
     CSS = """
@@ -158,15 +158,15 @@ class DevPulseTUI(App):
         yield HeaderBar(self._render_header(), id="header-bar")
         yield TabBar(id="tab-bar")
         with ContentSwitcher(initial="today", id="content"):
-            from devpulse.ui.tui.screens.today    import TodayScreen
-            from devpulse.ui.tui.screens.week     import WeekScreen
-            from devpulse.ui.tui.screens.projects import ProjectsScreen
-            from devpulse.ui.tui.screens.toil     import ToilScreen
-            from devpulse.ui.tui.screens.fixes    import FixesScreen
-            from devpulse.ui.tui.screens.focus    import FocusScreen
-            from devpulse.ui.tui.screens.insights import InsightsScreen
-            from devpulse.ui.tui.screens.profile  import ProfileScreen
-            from devpulse.ui.tui.screens.config   import ConfigScreen
+            from ghost_pulse.ui.tui.screens.today    import TodayScreen
+            from ghost_pulse.ui.tui.screens.week     import WeekScreen
+            from ghost_pulse.ui.tui.screens.projects import ProjectsScreen
+            from ghost_pulse.ui.tui.screens.toil     import ToilScreen
+            from ghost_pulse.ui.tui.screens.fixes    import FixesScreen
+            from ghost_pulse.ui.tui.screens.focus    import FocusScreen
+            from ghost_pulse.ui.tui.screens.insights import InsightsScreen
+            from ghost_pulse.ui.tui.screens.profile  import ProfileScreen
+            from ghost_pulse.ui.tui.screens.config   import ConfigScreen
 
             screen_classes = {
                 "today":    TodayScreen,
@@ -186,7 +186,7 @@ class DevPulseTUI(App):
         yield KeyBar(id="key-bar")
 
     async def on_mount(self) -> None:
-        from devpulse import db
+        from ghost_pulse import db
         db.init_db()
 
         tab_bar = self.query_one("#tab-bar", TabBar)
@@ -232,7 +232,7 @@ class DevPulseTUI(App):
         except Exception:
             right = "[dim #d97706]daemon: ?[/dim]"
         now = datetime.now().strftime("%a %b %-d  %H:%M:%S")
-        left = f"[bold #5e6ad2]⬡ DevPulse[/] [dim #23252a]─[/] [bold #f7f8f8]{view_title}[/]"
+        left = f"[bold #5e6ad2]⬡ Ghost Pulse[/] [dim #23252a]─[/] [bold #f7f8f8]{view_title}[/]"
         return f"{left}  {right}  [dim]{now}[/dim]"
 
     def _update_header(self) -> None:

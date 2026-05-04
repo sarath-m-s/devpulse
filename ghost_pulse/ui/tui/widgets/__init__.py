@@ -1,11 +1,11 @@
-"""Reusable Textual widgets for the DevPulse TUI."""
+"""Reusable Textual widgets for the Ghost Pulse TUI."""
 
-from devpulse.ui.tui.widgets.panel import Panel
-from devpulse.ui.tui.widgets.stat_card import StatCard, StatRow
-from devpulse.ui.tui.widgets.bar_chart import BarChart
-from devpulse.ui.tui.widgets.switch_chart import SwitchChart
-from devpulse.ui.tui.widgets.sparkline import sparkline
-from devpulse.ui.tui.widgets.heatmap import Heatmap
+from ghost_pulse.ui.tui.widgets.panel import Panel
+from ghost_pulse.ui.tui.widgets.stat_card import StatCard, StatRow
+from ghost_pulse.ui.tui.widgets.bar_chart import BarChart
+from ghost_pulse.ui.tui.widgets.switch_chart import SwitchChart
+from ghost_pulse.ui.tui.widgets.sparkline import sparkline
+from ghost_pulse.ui.tui.widgets.heatmap import Heatmap
 
 __all__ = [
     "Panel",

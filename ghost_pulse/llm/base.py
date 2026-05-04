@@ -33,8 +33,8 @@ class LLMProvider(ABC):
         """Provider identifier string."""
 
 
-DEVPULSE_SYSTEM_PROMPT = """\
-You are DevPulse, a personal developer productivity assistant. Analyze the developer's
+GHOST_PULSE_SYSTEM_PROMPT = """\
+You are Ghost Pulse, a personal developer productivity assistant. Analyze the developer's
 activity data and provide actionable, specific insights. Be concise and direct.
 Focus on:
 1. Time allocation patterns (are they spending time where they intend to?)

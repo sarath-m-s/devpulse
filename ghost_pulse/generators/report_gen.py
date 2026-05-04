@@ -6,8 +6,8 @@ import json
 from datetime import datetime, timedelta
 from typing import Any
 
-from devpulse.llm.base import LLMProvider, DEVPULSE_SYSTEM_PROMPT
-from devpulse.analyzers import time_tracker, context_switch, toil as toil_analyzer
+from ghost_pulse.llm.base import LLMProvider, GHOST_PULSE_SYSTEM_PROMPT
+from ghost_pulse.analyzers import time_tracker, context_switch, toil as toil_analyzer
 
 
 def _build_activity_summary(days: int = 7) -> str:
@@ -63,7 +63,7 @@ def generate_insights(provider: LLMProvider, days: int = 7) -> str:
     """Send activity summary to LLM and return personalized insights."""
     summary = _build_activity_summary(days=days)
     prompt = f"{summary}\n\nBased on this data, give me your top 3-5 insights."
-    response = provider.analyze(prompt, system_prompt=DEVPULSE_SYSTEM_PROMPT)
+    response = provider.analyze(prompt, system_prompt=GHOST_PULSE_SYSTEM_PROMPT)
     return response.content.strip()
 
 

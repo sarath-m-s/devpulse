@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from devpulse.bootstrap.ollama_setup import (
+from ghost_pulse.bootstrap.ollama_setup import (
     _model_present,
     _ollama_compare_key,
     _parse_installed_models,
@@ -42,7 +42,7 @@ def test_model_present(installed, want, expected):
 def test_run_ollama_bootstrap_skip_flag():
     console = MagicMock()
     cfg = {"llm": {"provider": "ollama"}}
-    with patch("devpulse.bootstrap.ollama_setup._install_ollama") as inst:
+    with patch("ghost_pulse.bootstrap.ollama_setup._install_ollama") as inst:
         run_ollama_bootstrap(console, cfg, skip=True)
         inst.assert_not_called()
 
@@ -50,17 +50,17 @@ def test_run_ollama_bootstrap_skip_flag():
 def test_run_ollama_bootstrap_skips_non_ollama_provider():
     console = MagicMock()
     cfg = {"llm": {"provider": "claude"}}
-    with patch("devpulse.bootstrap.ollama_setup._install_ollama") as inst:
+    with patch("ghost_pulse.bootstrap.ollama_setup._install_ollama") as inst:
         run_ollama_bootstrap(console, cfg, skip=False)
         inst.assert_not_called()
 
 
 def test_pull_models_skips_when_already_present():
     console = MagicMock()
-    with patch("devpulse.bootstrap.ollama_setup.is_server_reachable", return_value=True), patch(
-        "devpulse.bootstrap.ollama_setup.httpx.get"
-    ) as get, patch("devpulse.bootstrap.ollama_setup.shutil.which", return_value="/bin/ollama"), patch(
-        "devpulse.bootstrap.ollama_setup.subprocess.run"
+    with patch("ghost_pulse.bootstrap.ollama_setup.is_server_reachable", return_value=True), patch(
+        "ghost_pulse.bootstrap.ollama_setup.httpx.get"
+    ) as get, patch("ghost_pulse.bootstrap.ollama_setup.shutil.which", return_value="/bin/ollama"), patch(
+        "ghost_pulse.bootstrap.ollama_setup.subprocess.run"
     ) as run:
         get.return_value.status_code = 200
         get.return_value.json.return_value = {

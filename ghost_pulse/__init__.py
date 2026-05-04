@@ -1,3 +1,3 @@
-"""DevPulse — privacy-first developer productivity copilot."""
+"""Ghost Pulse — privacy-first developer productivity copilot."""
 
-__version__ = "0.1.0"
+__version__ = "3.1.0"

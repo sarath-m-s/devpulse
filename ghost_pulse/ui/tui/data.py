@@ -1,4 +1,4 @@
-"""Shared data fetching layer for the DevPulse TUI.
+"""Shared data fetching layer for the Ghost Pulse TUI.
 
 Re-exposes the same data the web UI uses (analyzers, LLM, db, daemon) in a
 unified API so screens can stay focused on rendering.
@@ -10,8 +10,8 @@ from datetime import datetime, timedelta
 from html import escape as _esc
 from typing import Any
 
-from devpulse import db
-from devpulse.analyzers import context_switch, time_tracker, toil as toil_analyzer
+from ghost_pulse import db
+from ghost_pulse.analyzers import context_switch, time_tracker, toil as toil_analyzer
 
 
 # ---------------------------------------------------------------------------
@@ -476,7 +476,7 @@ def fetch_activity(limit: int = 20) -> list[dict[str, Any]]:
 def fetch_predicted_next() -> dict[str, Any] | None:
     """Predict next action for today's most active project."""
     try:
-        from devpulse.analyzers.workflow_predictor import WorkflowPredictor
+        from ghost_pulse.analyzers.workflow_predictor import WorkflowPredictor
 
         time_data = time_tracker.compute_time_per_project(since=today_start())
         if not time_data:
@@ -512,7 +512,7 @@ def fetch_predicted_next() -> dict[str, Any] | None:
 
 def fetch_recurring_errors(limit: int = 4) -> list[dict[str, Any]]:
     try:
-        from devpulse.analyzers.error_memory import ErrorMemory
+        from ghost_pulse.analyzers.error_memory import ErrorMemory
         errors = ErrorMemory().get_frequent_errors(days=7, limit=limit * 2)
         recurring = [e for e in errors if e.get("occurrences", 1) >= 2]
         result = []
@@ -534,7 +534,7 @@ def fetch_recurring_errors(limit: int = 4) -> list[dict[str, Any]]:
 
 def fetch_profile(days: int = 30) -> dict[str, Any]:
     try:
-        from devpulse.analyzers.developer_fingerprint import DeveloperFingerprint
+        from ghost_pulse.analyzers.developer_fingerprint import DeveloperFingerprint
         fp = DeveloperFingerprint()
         return {
             "energy": fp.generate_energy_map(days),
@@ -551,8 +551,8 @@ def fetch_profile(days: int = 30) -> dict[str, Any]:
 
 def get_llm_provider():
     """Return the configured LLM provider (or NoopProvider)."""
-    from devpulse.config import load_config
-    from devpulse.llm.factory import get_provider
+    from ghost_pulse.config import load_config
+    from ghost_pulse.llm.factory import get_provider
     cfg = load_config()
     return get_provider(cfg), cfg
 
@@ -567,7 +567,7 @@ def fetch_insights() -> dict[str, Any]:
     text = ""
     if available:
         try:
-            from devpulse.generators.report_gen import generate_insights
+            from ghost_pulse.generators.report_gen import generate_insights
             text = generate_insights(provider, days=30)
         except Exception as exc:
             text = f"Error generating insights: {exc}"
@@ -584,15 +584,15 @@ def ask_llm(question: str) -> str:
     """Synchronous LLM ask — call from a worker."""
     provider, _ = get_llm_provider()
     if not provider.is_available():
-        return "No LLM provider is configured. Run `devpulse config set llm.provider ollama` to set one up."
+        return "No LLM provider is configured. Run `ghost config set llm.provider ollama` to set one up."
 
-    from devpulse.generators.report_gen import _build_activity_summary
-    from devpulse.llm.base import DEVPULSE_SYSTEM_PROMPT
+    from ghost_pulse.generators.report_gen import _build_activity_summary
+    from ghost_pulse.llm.base import GHOST_PULSE_SYSTEM_PROMPT
 
     summary = _build_activity_summary(days=30)
     prompt = f"{summary}\n\nUser question: {question}\n\nAnswer concisely based on the data above."
     try:
-        response = provider.analyze(prompt, system_prompt=DEVPULSE_SYSTEM_PROMPT)
+        response = provider.analyze(prompt, system_prompt=GHOST_PULSE_SYSTEM_PROMPT)
         return response.content.strip()
     except Exception as exc:
         return f"LLM error: {exc}"
@@ -611,7 +611,7 @@ def generate_toil_script(pattern_id: int) -> dict[str, Any]:
     if not provider.is_available():
         return {"error": "No LLM provider configured. Go to Config screen (9) to set one."}
     try:
-        from devpulse.generators.script_gen import generate_script
+        from ghost_pulse.generators.script_gen import generate_script
         raw = generate_script(pattern, provider)
     except Exception as exc:
         return {"error": f"LLM error: {exc}"}
@@ -640,7 +640,7 @@ def save_toil_script(code: str, destination: str, pattern_id: int | None = None)
     Synchronous — call from a worker thread.
     """
     try:
-        from devpulse.generators.script_gen import save_script
+        from ghost_pulse.generators.script_gen import save_script
         path = save_script(code, destination=destination)
         if pattern_id is not None:
             try:
@@ -662,9 +662,9 @@ def save_toil_script(code: str, destination: str, pattern_id: int | None = None)
 
 def fetch_fix_overview() -> dict[str, Any]:
     """Stats, embedding provider, and open fix windows for the TUI."""
-    from devpulse.config import load_config
-    from devpulse.rag.embed_factory import get_embedding_provider
-    from devpulse.rag.fix_tracker import expire_stale_windows, get_open_windows
+    from ghost_pulse.config import load_config
+    from ghost_pulse.rag.embed_factory import get_embedding_provider
+    from ghost_pulse.rag.fix_tracker import expire_stale_windows, get_open_windows
 
     expired = expire_stale_windows()
     open_wins = get_open_windows()
@@ -700,9 +700,9 @@ def run_fix_suggest(
     project: str | None = None,
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
-    from devpulse.config import load_config
-    from devpulse.rag.embed_factory import get_embedding_provider
-    from devpulse.rag.retriever import FixRetriever
+    from ghost_pulse.config import load_config
+    from ghost_pulse.rag.embed_factory import get_embedding_provider
+    from ghost_pulse.rag.retriever import FixRetriever
 
     cfg = load_config()
     rag_cfg = cfg.get("rag", {})
@@ -726,7 +726,7 @@ def run_fix_suggest(
 # ---------------------------------------------------------------------------
 
 def fetch_status() -> dict[str, Any]:
-    from devpulse.daemon import is_running, _read_pid
+    from ghost_pulse.daemon import is_running, _read_pid
 
     pid = _read_pid()
     db_path = db.get_db_path()
@@ -749,12 +749,12 @@ def fetch_status() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def load_cfg() -> dict[str, Any]:
-    from devpulse.config import load_config
+    from ghost_pulse.config import load_config
     return load_config()
 
 
 def save_cfg(updates: dict[str, Any]) -> None:
-    from devpulse.config import load_config, save_config, set_config_value
+    from ghost_pulse.config import load_config, save_config, set_config_value
     cfg = load_config()
     for key, value in updates.items():
         # set_config_value expects a string; convert native types first
@@ -763,7 +763,7 @@ def save_cfg(updates: dict[str, Any]) -> None:
 
 
 def restart_daemon() -> str:
-    from devpulse.daemon import stop_daemon, start_daemon
+    from ghost_pulse.daemon import stop_daemon, start_daemon
     try:
         stop_daemon()
     except Exception:
@@ -776,7 +776,7 @@ def restart_daemon() -> str:
 
 
 def stop_daemon() -> str:
-    from devpulse.daemon import stop_daemon as _stop
+    from ghost_pulse.daemon import stop_daemon as _stop
     try:
         _stop()
         return "Daemon stopped"

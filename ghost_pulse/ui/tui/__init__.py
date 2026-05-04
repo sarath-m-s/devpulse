@@ -1,5 +1,5 @@
-"""DevPulse interactive terminal UI (k9s-inspired)."""
+"""Ghost Pulse interactive terminal UI (k9s-inspired)."""
 
-from devpulse.ui.tui.app import DevPulseTUI
+from ghost_pulse.ui.tui.app import GhostPulseTUI
 
-__all__ = ["DevPulseTUI"]
+__all__ = ["GhostPulseTUI"]

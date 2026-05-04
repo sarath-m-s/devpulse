@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from devpulse.llm.base import LLMProvider, DEVPULSE_SYSTEM_PROMPT
+from ghost_pulse.llm.base import LLMProvider, GHOST_PULSE_SYSTEM_PROMPT
 
 
 _SCRIPT_PROMPT_TEMPLATE = """\
@@ -30,7 +30,7 @@ def generate_script(
     output_format: str = "auto",
 ) -> str:
     """Use LLM to generate an automation script for a toil pattern."""
-    from devpulse.analyzers.toil import find_example_commands
+    from ghost_pulse.analyzers.toil import find_example_commands
 
     normalized = pattern.get("commands", [])
     count = pattern.get("count", 1)
@@ -44,7 +44,7 @@ def generate_script(
         count=count,
     )
 
-    response = provider.analyze(prompt, system_prompt=DEVPULSE_SYSTEM_PROMPT)
+    response = provider.analyze(prompt, system_prompt=GHOST_PULSE_SYSTEM_PROMPT)
     return response.content.strip()
 
 
@@ -60,33 +60,33 @@ def save_script(
       'zshrc'   → appends to ~/.zshrc
       'aliases' → appends to ~/.aliases
       'makefile' → appends to project Makefile
-      'scripts'  → saves to ~/.devpulse/scripts/generated.sh
+      'scripts'  → saves to ~/.ghost-pulse/scripts/generated.sh
     """
     if destination == "zshrc":
         target = Path.home() / ".zshrc"
         with open(target, "a") as fh:
-            fh.write(f"\n# DevPulse generated\n{script}\n")
+            fh.write(f"\n# Ghost Pulse generated\n{script}\n")
         return target
 
     if destination == "aliases":
         target = Path.home() / ".aliases"
         target.touch(exist_ok=True)
         with open(target, "a") as fh:
-            fh.write(f"\n# DevPulse generated\n{script}\n")
+            fh.write(f"\n# Ghost Pulse generated\n{script}\n")
         return target
 
     if destination == "makefile" and project_path:
         target = project_path / "Makefile"
         with open(target, "a") as fh:
-            fh.write(f"\n# DevPulse generated\n{script}\n")
+            fh.write(f"\n# Ghost Pulse generated\n{script}\n")
         return target
 
-    # Default: save to ~/.devpulse/scripts/
-    scripts_dir = Path.home() / ".devpulse" / "scripts"
+    # Default: save to ~/.ghost-pulse/scripts/
+    scripts_dir = Path.home() / ".ghost-pulse" / "scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     # Count existing to avoid overwrites
     existing = len(list(scripts_dir.glob("generated_*.sh")))
     target = scripts_dir / f"generated_{existing + 1:03d}.sh"
-    target.write_text(f"#!/bin/bash\n# DevPulse generated\n{script}\n")
+    target.write_text(f"#!/bin/bash\n# Ghost Pulse generated\n{script}\n")
     target.chmod(0o755)
     return target

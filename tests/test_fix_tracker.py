@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from devpulse import db
-from devpulse.rag.fix_tracker import (
+from ghost_pulse import db
+from ghost_pulse.rag.fix_tracker import (
     close_fix_window,
     close_fix_window_by_hash,
     expire_stale_windows,
@@ -18,7 +18,7 @@ from devpulse.rag.fix_tracker import (
     track_command,
     track_file_change,
 )
-from devpulse.analyzers.error_memory import _error_hash
+from ghost_pulse.analyzers.error_memory import _error_hash
 
 
 @pytest.fixture(autouse=True)

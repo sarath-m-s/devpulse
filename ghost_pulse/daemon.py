@@ -11,13 +11,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-from devpulse import db
-from devpulse.config import load_config, DEVPULSE_DIR
+from ghost_pulse import db
+from ghost_pulse.config import load_config, GHOST_PULSE_DIR
 
-logger = logging.getLogger("devpulse.daemon")
+logger = logging.getLogger("ghost_pulse.daemon")
 
-PID_FILE = DEVPULSE_DIR / "daemon.pid"
-LOG_FILE = DEVPULSE_DIR / "daemon.log"
+PID_FILE = GHOST_PULSE_DIR / "daemon.pid"
+LOG_FILE = GHOST_PULSE_DIR / "daemon.log"
 
 
 def _setup_logging() -> None:
@@ -65,7 +65,7 @@ def _run_daemon(config: dict[str, Any]) -> None:
     """Main daemon loop — starts all enabled collectors."""
     _setup_logging()
     _write_pid()
-    logger.info("DevPulse daemon started (pid=%d)", os.getpid())
+    logger.info("Ghost Pulse daemon started (pid=%d)", os.getpid())
 
     db.init_db()
 
@@ -80,21 +80,21 @@ def _run_daemon(config: dict[str, Any]) -> None:
     poll = config.get("general", {}).get("poll_interval_seconds", 30)
 
     if cfg_collectors.get("git", True):
-        from devpulse.collectors.git_collector import GitCollector
+        from ghost_pulse.collectors.git_collector import GitCollector
         gc = GitCollector(project_paths=projects, poll_interval=poll)
         gc.start()
         collectors.append(gc)
         logger.info("Git collector started")
 
     if cfg_collectors.get("file_watcher", True):
-        from devpulse.collectors.file_watcher import FileWatcher
+        from ghost_pulse.collectors.file_watcher import FileWatcher
         fw = FileWatcher(project_paths=projects)
         fw.start()
         collectors.append(fw)
         logger.info("File watcher started")
 
     if cfg_collectors.get("window_tracker", False):
-        from devpulse.collectors.window import WindowTracker
+        from ghost_pulse.collectors.window import WindowTracker
         wt = WindowTracker()
         wt.start()
         collectors.append(wt)
@@ -134,7 +134,7 @@ def _run_daemon(config: dict[str, Any]) -> None:
             logger.warning("Error stopping collector: %s", exc)
 
     _cleanup()
-    logger.info("DevPulse daemon stopped")
+    logger.info("Ghost Pulse daemon stopped")
 
 
 def _schedule_v2_tasks(config: dict[str, Any], stop_event: threading.Event) -> None:
@@ -148,7 +148,7 @@ def _schedule_v2_tasks(config: dict[str, Any], stop_event: threading.Event) -> N
             if stop_event.is_set():
                 break
             try:
-                from devpulse.analyzers.workflow_predictor import WorkflowPredictor
+                from ghost_pulse.analyzers.workflow_predictor import WorkflowPredictor
                 n = WorkflowPredictor().learn_sequences(
                     days=v2.get("prediction_learning_days", 30)
                 )
@@ -169,7 +169,7 @@ def _schedule_v2_tasks(config: dict[str, Any], stop_event: threading.Event) -> N
             if stop_event.is_set():
                 break
             try:
-                from devpulse.analyzers.context_restorer import ContextRestorer
+                from ghost_pulse.analyzers.context_restorer import ContextRestorer
                 snapshotted = ContextRestorer().capture_on_gap(gap_minutes=gap)
                 if snapshotted:
                     logger.info("Captured snapshots for: %s", ", ".join(snapshotted))
@@ -185,7 +185,7 @@ def _schedule_v2_tasks(config: dict[str, Any], stop_event: threading.Event) -> N
             if stop_event.is_set():
                 break
             try:
-                from devpulse.analyzers.error_memory import ErrorMemory
+                from ghost_pulse.analyzers.error_memory import ErrorMemory
                 n = ErrorMemory().detect_fixes_from_history()
                 if n:
                     logger.info("Error memory: recorded %d new fixes", n)
@@ -196,7 +196,7 @@ def _schedule_v2_tasks(config: dict[str, Any], stop_event: threading.Event) -> N
 
     # Focus guard — project-switch monitor (runs every 30 seconds)
     if v2.get("focus_guard_enabled", True):
-        from devpulse.analyzers.focus_guard import FocusGuard, _get_active_app_name
+        from ghost_pulse.analyzers.focus_guard import FocusGuard, _get_active_app_name
         guard = FocusGuard(config)
         _last_project: list[str] = [""]  # mutable container for closure
 
@@ -260,7 +260,7 @@ def start_daemon() -> None:
         if is_running():
             print(f"Daemon started (pid {_read_pid()})")
         else:
-            print("Daemon may have failed to start — check ~/.devpulse/daemon.log")
+            print("Daemon may have failed to start — check ~/.ghost-pulse/daemon.log")
         return
 
     # Child: detach
@@ -274,7 +274,7 @@ def start_daemon() -> None:
     try:
         _run_daemon(config)
     except Exception as exc:
-        logging.getLogger("devpulse.daemon").exception("Unhandled error: %s", exc)
+        logging.getLogger("ghost_pulse.daemon").exception("Unhandled error: %s", exc)
     finally:
         _cleanup()
     os._exit(0)

@@ -1,1 +1,1 @@
-"""Screens for the DevPulse TUI — one per nav tab."""
+"""Screens for the Ghost Pulse TUI — one per nav tab."""

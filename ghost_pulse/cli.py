@@ -1,4 +1,4 @@
-"""DevPulse CLI — main entry point using Typer."""
+"""Ghost Pulse CLI — main entry point using Typer."""
 
 from __future__ import annotations
 
@@ -15,19 +15,19 @@ from rich.panel import Panel
 from rich.table import Table
 from rich import box
 
-from devpulse import db
-from devpulse.config import (
+from ghost_pulse import db
+from ghost_pulse.config import (
     auto_detect_projects,
     ensure_default_config,
     get_config_value,
     load_config,
     save_config,
     set_config_value,
-    DEVPULSE_DIR,
+    GHOST_PULSE_DIR,
 )
 
 app = typer.Typer(
-    name="devpulse",
+    name="ghost",
     help="Privacy-first developer productivity copilot.",
     add_completion=True,
     no_args_is_help=True,
@@ -55,7 +55,7 @@ def _get_cfg() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# devpulse init
+# ghost init
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -67,11 +67,11 @@ def init(
     skip_ollama: bool = typer.Option(
         False,
         "--skip-ollama",
-        help="Do not install Ollama or pull models (also: DEVPULSE_SKIP_OLLAMA=1)",
+        help="Do not install Ollama or pull models (also: GHOST_PULSE_SKIP_OLLAMA=1)",
     ),
 ) -> None:
-    """Initialize DevPulse: config, DB, optional tool checks, Ollama bootstrap, hook instructions."""
-    DEVPULSE_DIR.mkdir(parents=True, exist_ok=True)
+    """Initialize Ghost Pulse: config, DB, optional tool checks, Ollama bootstrap, hook instructions."""
+    GHOST_PULSE_DIR.mkdir(parents=True, exist_ok=True)
     cfg = ensure_default_config()
 
     existing = set(cfg["projects"].get("paths", []))
@@ -97,19 +97,19 @@ def init(
                 "[yellow]⚠[/yellow]  No git repos found in common directories"
             )
             console.print(
-                "  Tell DevPulse where your projects live:\n"
-                "    [bold]devpulse init --path ~/your-projects[/bold]\n"
+                "  Tell Ghost Pulse where your projects live:\n"
+                "    [bold]ghost init --path ~/your-projects[/bold]\n"
                 "  or add them individually:\n"
-                "    [bold]devpulse projects add ~/your-projects[/bold]"
+                "    [bold]ghost projects add ~/your-projects[/bold]"
             )
 
     db.init_db()
     console.print("[green]✓[/green] Database initialized")
-    console.print(f"[green]✓[/green] Config at {DEVPULSE_DIR / 'config.toml'}")
+    console.print(f"[green]✓[/green] Config at {GHOST_PULSE_DIR / 'config.toml'}")
 
     _print_optional_tool_hints()
 
-    from devpulse.bootstrap import run_ollama_bootstrap
+    from ghost_pulse.bootstrap import run_ollama_bootstrap
 
     run_ollama_bootstrap(console, cfg, skip=skip_ollama)
     cfg = load_config()
@@ -122,49 +122,49 @@ def init(
             console.print(f"    [dim]{p}[/dim]")
 
     # LLM probe
-    from devpulse.llm.factory import get_provider
+    from ghost_pulse.llm.factory import get_provider
     provider = get_provider(cfg)
     if provider.name != "none":
         console.print(f"[green]✓[/green] LLM provider: [bold]{provider.name}[/bold]")
     else:
         console.print("[yellow]⚠[/yellow]  No LLM provider found — AI features disabled")
-        console.print("    Run: devpulse config providers  to see options")
+        console.print("    Run: ghost config providers  to see options")
 
     console.print()
     console.print(Panel(
         "[bold]Shell hook installation[/bold]\n\n"
         "Add to [cyan]~/.zshrc[/cyan]:\n"
-        '  [dim]source "$(devpulse shell-hook --zsh)"[/dim]\n\n'
+        '  [dim]source "$(ghost shell-hook --zsh)"[/dim]\n\n'
         "Add to [cyan]~/.bashrc[/cyan]:\n"
-        '  [dim]source "$(devpulse shell-hook --bash)"[/dim]\n\n'
-        "Then restart your shell and run: [bold]devpulse start[/bold]",
+        '  [dim]source "$(ghost shell-hook --bash)"[/dim]\n\n'
+        "Then restart your shell and run: [bold]ghost start[/bold]",
         title="Next steps",
         box=box.ROUNDED,
     ))
 
 
 # ---------------------------------------------------------------------------
-# devpulse start / stop / status
+# ghost start / stop / status
 # ---------------------------------------------------------------------------
 
 @app.command()
 def start() -> None:
     """Start the background collector daemon."""
-    from devpulse.daemon import start_daemon
+    from ghost_pulse.daemon import start_daemon
     start_daemon()
 
 
 @app.command()
 def stop() -> None:
     """Stop the background daemon."""
-    from devpulse.daemon import stop_daemon
+    from ghost_pulse.daemon import stop_daemon
     stop_daemon()
 
 
 @app.command()
 def status() -> None:
     """Show daemon status and today's activity summary."""
-    from devpulse.daemon import is_running, _read_pid
+    from ghost_pulse.daemon import is_running, _read_pid
 
     running = is_running()
     pid = _read_pid()
@@ -178,7 +178,7 @@ def status() -> None:
         "%Y-%m-%dT%H:%M:%S"
     )
 
-    from devpulse.analyzers.time_tracker import compute_time_per_project
+    from ghost_pulse.analyzers.time_tracker import compute_time_per_project
     time_data = compute_time_per_project(since=today_str)
     active_project = "—"
     known = {p: v for p, v in time_data.items() if p != "unknown"}
@@ -193,11 +193,11 @@ def status() -> None:
     table.add_row("Active project", active_project)
     table.add_row("DB path", str(db.get_db_path()))
 
-    console.print(Panel(table, title="[bold]DevPulse Status[/bold]", box=box.ROUNDED))
+    console.print(Panel(table, title="[bold]Ghost Pulse Status[/bold]", box=box.ROUNDED))
 
 
 # ---------------------------------------------------------------------------
-# devpulse log-cmd  (hidden — called by shell hooks)
+# ghost log-cmd  (hidden — called by shell hooks)
 # ---------------------------------------------------------------------------
 
 @app.command(name="log-cmd", hidden=True)
@@ -210,7 +210,7 @@ def log_cmd(
 ) -> None:
     """Record a shell command (called by shell hooks)."""
     db.init_db()
-    from devpulse.collectors.shell import log_command
+    from ghost_pulse.collectors.shell import log_command
     log_command(
         cmd=cmd,
         cwd=cwd,
@@ -221,7 +221,7 @@ def log_cmd(
 
 
 # ---------------------------------------------------------------------------
-# devpulse shell-hook
+# ghost shell-hook
 # ---------------------------------------------------------------------------
 
 @app.command(name="shell-hook")
@@ -230,59 +230,58 @@ def shell_hook(
     bash: bool = typer.Option(False, "--bash"),
 ) -> None:
     """Print path to shell hook file for sourcing."""
-    hooks_dir = DEVPULSE_DIR / "hooks"
+    hooks_dir = GHOST_PULSE_DIR / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
 
     # Write hook files if they don't exist or are stale
     _write_hooks(hooks_dir)
 
     if zsh:
-        print(hooks_dir / "devpulse.zsh")
+        print(hooks_dir / "ghost.zsh")
     elif bash:
-        print(hooks_dir / "devpulse.bash")
+        print(hooks_dir / "ghost.bash")
     else:
-        print(hooks_dir / "devpulse.zsh")
+        print(hooks_dir / "ghost.zsh")
 
 
 def _write_hooks(hooks_dir: Path) -> None:
-    """Write shell hook files to the devpulse hooks directory."""
-    zsh_hook = hooks_dir / "devpulse.zsh"
-    bash_hook = hooks_dir / "devpulse.bash"
+    """Write shell hook files to the Ghost Pulse hooks directory."""
+    zsh_hook = hooks_dir / "ghost.zsh"
+    bash_hook = hooks_dir / "ghost.bash"
 
-    import importlib.resources as pkg_resources
     shell_dir = Path(__file__).parent.parent / "shell"
 
-    for src, dst in [(shell_dir / "devpulse.zsh", zsh_hook), (shell_dir / "devpulse.bash", bash_hook)]:
+    for src, dst in [(shell_dir / "ghost.zsh", zsh_hook), (shell_dir / "ghost.bash", bash_hook)]:
         if src.exists():
             dst.write_text(src.read_text())
 
 
 # ---------------------------------------------------------------------------
-# devpulse today
+# ghost today
 # ---------------------------------------------------------------------------
 
 @app.command()
 def today() -> None:
     """Show today's activity dashboard."""
     db.init_db()
-    from devpulse.ui.dashboard import render_today
+    from ghost_pulse.ui.dashboard import render_today
     render_today()
 
 
 # ---------------------------------------------------------------------------
-# devpulse week
+# ghost week
 # ---------------------------------------------------------------------------
 
 @app.command()
 def week() -> None:
     """Show weekly summary."""
     db.init_db()
-    from devpulse.ui.dashboard import render_week
+    from ghost_pulse.ui.dashboard import render_week
     render_week()
 
 
 # ---------------------------------------------------------------------------
-# devpulse toil
+# ghost toil
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -292,7 +291,7 @@ def toil(
 ) -> None:
     """List detected toil patterns ranked by impact."""
     db.init_db()
-    from devpulse.analyzers.toil import detect_toil, get_ranked_patterns, estimate_time_wasted
+    from ghost_pulse.analyzers.toil import detect_toil, get_ranked_patterns, estimate_time_wasted
 
     cfg = _get_cfg()
     threshold = cfg.get("general", {}).get("toil_threshold", 5)
@@ -313,7 +312,7 @@ def toil(
         table.add_row(str(p.get("id", "?")), cmds, f"×{p['count']}", f"~{wasted:.1f}h")
 
     console.print(table)
-    console.print(f"\n[dim]Run [bold]devpulse suggest <id>[/bold] to generate automation[/dim]")
+    console.print(f"\n[dim]Run [bold]ghost suggest <id>[/bold] to generate automation[/dim]")
 
     if suggest and patterns:
         top = patterns[0]
@@ -321,7 +320,7 @@ def toil(
 
 
 # ---------------------------------------------------------------------------
-# devpulse suggest
+# ghost suggest
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -332,12 +331,12 @@ def suggest(
     db.init_db()
     cfg = _get_cfg()
 
-    from devpulse.analyzers.toil import get_ranked_patterns
-    from devpulse.llm.factory import get_provider
+    from ghost_pulse.analyzers.toil import get_ranked_patterns
+    from ghost_pulse.llm.factory import get_provider
 
     patterns = get_ranked_patterns()
     if not patterns:
-        console.print("[yellow]No toil patterns detected yet. Run: devpulse toil[/yellow]")
+        console.print("[yellow]No toil patterns detected yet. Run: ghost toil[/yellow]")
         raise typer.Exit(1)
 
     if pattern_id is not None:
@@ -355,12 +354,12 @@ _DEST_ALIASES = {"yes": "scripts", "y": "scripts", "": "scripts", "s": "scripts"
 def _do_suggest(pattern: dict, cfg: dict) -> None:
     from rich.markdown import Markdown
     from rich.syntax import Syntax
-    from devpulse.llm.factory import get_provider
-    from devpulse.generators.script_gen import generate_script, save_script
+    from ghost_pulse.llm.factory import get_provider
+    from ghost_pulse.generators.script_gen import generate_script, save_script
 
     provider = get_provider(cfg)
     if provider.name == "none":
-        console.print("[yellow]No LLM provider configured. Run: devpulse config providers[/yellow]")
+        console.print("[yellow]No LLM provider configured. Run: ghost config providers[/yellow]")
         return
 
     cmds = " → ".join(pattern.get("commands", []))
@@ -492,7 +491,7 @@ def _print_script_usage(code: str, saved_path: Path, dest: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# devpulse next
+# ghost next
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -506,8 +505,8 @@ def next(
     """Show predicted next actions based on learned workflow sequences."""
     db.init_db()
 
-    from devpulse.analyzers.workflow_predictor import WorkflowPredictor
-    from devpulse.collectors.shell import _infer_project_from_cwd
+    from ghost_pulse.analyzers.workflow_predictor import WorkflowPredictor
+    from ghost_pulse.collectors.shell import _infer_project_from_cwd
     import os
 
     predictor = WorkflowPredictor()
@@ -571,9 +570,9 @@ def next(
             console.print(
                 Panel(
                     f"[dim]No workflow patterns learned for [bold]{project}[/bold] yet.\n"
-                    "DevPulse needs 2+ occurrences of the same command sequence to predict.\n"
+                    "Ghost Pulse needs 2+ occurrences of the same command sequence to predict.\n"
                     "Keep working and check back later![/dim]",
-                    title=f"[bold blue]DevPulse · Next actions for {project}[/bold blue]",
+                    title=f"[bold blue]Ghost Pulse · Next actions for {project}[/bold blue]",
                     border_style="blue",
                     box=box.ROUNDED,
                 )
@@ -581,7 +580,7 @@ def next(
         else:
             console.print(
                 f"[yellow]No confident predictions based on your last commands in '{project}'.[/yellow]\n"
-                f"[dim]Run [bold]devpulse next --list[/bold] to see all learned routines.[/dim]"
+                f"[dim]Run [bold]ghost next --list[/bold] to see all learned routines.[/dim]"
             )
         return
 
@@ -615,7 +614,7 @@ def next(
     console.print(
         Panel(
             "\n".join(lines),
-            title=f"[bold blue]DevPulse · Next actions for {project}[/bold blue]",
+            title=f"[bold blue]Ghost Pulse · Next actions for {project}[/bold blue]",
             border_style="blue",
             box=box.ROUNDED,
         )
@@ -647,7 +646,7 @@ def _execute_commands(commands: list[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# devpulse recall
+# ghost recall
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -660,9 +659,9 @@ def recall(
     """Search error memory and past fixes."""
     db.init_db()
 
-    from devpulse.analyzers.error_memory import ErrorMemory
+    from ghost_pulse.analyzers.error_memory import ErrorMemory
     cfg = _get_cfg()
-    from devpulse.llm.factory import get_provider
+    from ghost_pulse.llm.factory import get_provider
     em = ErrorMemory(llm_provider=get_provider(cfg) if cfg else None)
 
     if show_diff is not None:
@@ -704,7 +703,7 @@ def recall(
         console.print(
             Panel(
                 empty_msg,
-                title="[bold blue]DevPulse · Error recall[/bold blue]",
+                title="[bold blue]Ghost Pulse · Error recall[/bold blue]",
                 border_style="blue",
                 box=box.ROUNDED,
             )
@@ -738,7 +737,7 @@ def recall(
     console.print(
         Panel(
             "\n".join(lines),
-            title="[bold blue]DevPulse · Error recall[/bold blue]",
+            title="[bold blue]Ghost Pulse · Error recall[/bold blue]",
             border_style="blue",
             box=box.ROUNDED,
         )
@@ -826,8 +825,8 @@ def _get_error_tip(error: dict, em: Any) -> str | None:
                 + (f"Known fix: {fix_desc}\n" if fix_desc else "")
                 + "Give ONE actionable debugging tip in under 25 words. No preamble."
             )
-            from devpulse.llm.base import DEVPULSE_SYSTEM_PROMPT
-            resp = em.llm.analyze(prompt, system_prompt=DEVPULSE_SYSTEM_PROMPT)
+            from ghost_pulse.llm.base import GHOST_PULSE_SYSTEM_PROMPT
+            resp = em.llm.analyze(prompt, system_prompt=GHOST_PULSE_SYSTEM_PROMPT)
             tip = resp.content.strip()
             if tip:
                 return tip
@@ -859,7 +858,7 @@ def _days_ago(ts: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# devpulse resume
+# ghost resume
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -872,8 +871,8 @@ def resume(
     """Restore context for a project you haven't worked on recently."""
     db.init_db()
     cfg = _get_cfg()
-    from devpulse.llm.factory import get_provider
-    from devpulse.analyzers.context_restorer import ContextRestorer
+    from ghost_pulse.llm.factory import get_provider
+    from ghost_pulse.analyzers.context_restorer import ContextRestorer
 
     provider = get_provider(cfg)
     restorer = ContextRestorer(llm_provider=provider if provider.name != "none" else None)
@@ -882,7 +881,7 @@ def resume(
         # Show all projects with their last session
         projects = db.get_all_snapshot_projects()
         if not projects:
-            console.print("[dim]No session snapshots yet. DevPulse will capture snapshots automatically as you work.[/dim]")
+            console.print("[dim]No session snapshots yet. Ghost Pulse will capture snapshots automatically as you work.[/dim]")
             return
         table = Table("Project", "Last session", "Branch", "Duration", box=box.ROUNDED)
         for proj in projects[:15]:
@@ -890,7 +889,7 @@ def resume(
             if snap:
                 ago = _days_ago(snap.get("snapshot_time", ""))
                 branch = snap.get("branch") or "—"
-                from devpulse.analyzers.context_restorer import _fmt_duration
+                from ghost_pulse.analyzers.context_restorer import _fmt_duration
                 dur = _fmt_duration(snap.get("duration_minutes"))
                 table.add_row(proj, ago, branch, dur)
         console.print(table)
@@ -944,7 +943,7 @@ def resume(
     console.print(
         Panel(
             content,
-            title=f"[bold blue]DevPulse · Resume {project}[/bold blue]",
+            title=f"[bold blue]Ghost Pulse · Resume {project}[/bold blue]",
             border_style="blue",
             box=box.ROUNDED,
         )
@@ -955,7 +954,7 @@ def resume(
 
     if checkout and ctx.get("branch"):
         import subprocess
-        from devpulse.analyzers.context_restorer import _find_project_path
+        from ghost_pulse.analyzers.context_restorer import _find_project_path
         proj_path = _find_project_path(project)
         if proj_path:
             subprocess.run(["git", "checkout", ctx["branch"]], cwd=proj_path)
@@ -969,7 +968,7 @@ def resume(
 
 
 # ---------------------------------------------------------------------------
-# devpulse profile
+# ghost profile
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -982,8 +981,8 @@ def profile(
     """Show your developer fingerprint and productivity profile."""
     db.init_db()
     cfg = _get_cfg()
-    from devpulse.llm.factory import get_provider
-    from devpulse.analyzers.developer_fingerprint import DeveloperFingerprint
+    from ghost_pulse.llm.factory import get_provider
+    from ghost_pulse.analyzers.developer_fingerprint import DeveloperFingerprint
 
     provider = get_provider(cfg)
     fp = DeveloperFingerprint(llm_provider=provider if provider.name != "none" else None)
@@ -1097,14 +1096,14 @@ def _print_profile(data: dict) -> None:
         )
 
     if not sections:
-        console.print("[dim]No profile data available. Run: devpulse profile --regenerate[/dim]")
+        console.print("[dim]No profile data available. Run: ghost profile --regenerate[/dim]")
         return
 
     content = ("\n\n" + "  " + "─" * 55 + "\n\n").join(sections)
     console.print(
         Panel(
             content,
-            title="[bold blue]DevPulse · Developer profile[/bold blue]",
+            title="[bold blue]Ghost Pulse · Developer profile[/bold blue]",
             border_style="blue",
             box=box.ROUNDED,
             padding=(1, 1),
@@ -1113,7 +1112,7 @@ def _print_profile(data: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# devpulse focus
+# ghost focus
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -1147,7 +1146,7 @@ def focus(
     guard_enabled = cfg.get("v2", {}).get("focus_guard_enabled", True)
 
     # Also compute from context switch data
-    from devpulse.analyzers.context_switch import compute_context_switches
+    from ghost_pulse.analyzers.context_switch import compute_context_switches
     ctx = compute_context_switches(since=today_str)
     focus_score = max(0, 100 - int(ctx.get("fragmentation_score", 0)))
     score_color = "green" if focus_score >= 70 else "yellow" if focus_score >= 40 else "red"
@@ -1218,7 +1217,7 @@ def focus(
     console.print(
         Panel(
             "\n".join(lines),
-            title="[bold blue]DevPulse · Focus today[/bold blue]",
+            title="[bold blue]Ghost Pulse · Focus today[/bold blue]",
             border_style="blue",
             box=box.ROUNDED,
         )
@@ -1226,7 +1225,7 @@ def focus(
 
 
 # ---------------------------------------------------------------------------
-# devpulse insights
+# ghost insights
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -1237,12 +1236,12 @@ def insights(
     db.init_db()
     cfg = _get_cfg()
 
-    from devpulse.llm.factory import get_provider
-    from devpulse.generators.report_gen import generate_insights
+    from ghost_pulse.llm.factory import get_provider
+    from ghost_pulse.generators.report_gen import generate_insights
 
     provider = get_provider(cfg)
     if provider.name == "none":
-        console.print("[yellow]No LLM provider configured. Run: devpulse config providers[/yellow]")
+        console.print("[yellow]No LLM provider configured. Run: ghost config providers[/yellow]")
         raise typer.Exit(1)
 
     from rich.markdown import Markdown
@@ -1255,7 +1254,7 @@ def insights(
         # v2 developer fingerprint insights
         v2_result = ""
         try:
-            from devpulse.analyzers.developer_fingerprint import DeveloperFingerprint
+            from ghost_pulse.analyzers.developer_fingerprint import DeveloperFingerprint
             fp = DeveloperFingerprint(llm_provider=provider)
             v2_result = fp.generate_insights(days=days)
         except Exception:
@@ -1264,7 +1263,7 @@ def insights(
         # v2 error patterns
         error_summary = ""
         try:
-            from devpulse.analyzers.error_memory import ErrorMemory
+            from ghost_pulse.analyzers.error_memory import ErrorMemory
             errors = ErrorMemory().get_frequent_errors(days=days, limit=3)
             if errors:
                 error_lines = []
@@ -1281,7 +1280,7 @@ def insights(
             pass
 
     console.print()
-    console.print(Rule(f"[bold blue]DevPulse Insights[/bold blue] · last {days} days", style="blue"))
+    console.print(Rule(f"[bold blue]Ghost Pulse Insights[/bold blue] · last {days} days", style="blue"))
     console.print(Panel(Markdown(result), border_style="blue", box=box.ROUNDED, padding=(1, 2)))
     if v2_result and v2_result != result:
         console.print(Panel(Markdown(v2_result), title="[bold]Energy & Focus Patterns[/bold]", border_style="cyan", box=box.ROUNDED, padding=(1, 2)))
@@ -1291,10 +1290,10 @@ def insights(
 
 
 # ---------------------------------------------------------------------------
-# devpulse config
+# ghost config
 # ---------------------------------------------------------------------------
 
-config_app = typer.Typer(help="Manage DevPulse configuration.")
+config_app = typer.Typer(help="Manage Ghost Pulse configuration.")
 app.add_typer(config_app, name="config")
 
 
@@ -1314,7 +1313,7 @@ def config_root(ctx: typer.Context) -> None:
 
 @config_app.command(name="set")
 def config_set(key: str, value: str) -> None:
-    """Set a config value (e.g. devpulse config set llm.provider ollama)."""
+    """Set a config value (e.g. ghost config set llm.provider ollama)."""
     cfg = _get_cfg()
     set_config_value(cfg, key, value)
     save_config(cfg)
@@ -1325,7 +1324,7 @@ def config_set(key: str, value: str) -> None:
 def config_providers() -> None:
     """Test all LLM providers and show which are available."""
     cfg = _get_cfg()
-    from devpulse.llm.factory import probe_all
+    from ghost_pulse.llm.factory import probe_all
 
     results, active_name = probe_all(cfg)
     table = Table("Provider", "Model", "Status", "Notes", box=box.ROUNDED)
@@ -1348,7 +1347,7 @@ def config_providers() -> None:
 
 
 # ---------------------------------------------------------------------------
-# devpulse projects
+# ghost projects
 # ---------------------------------------------------------------------------
 
 projects_app = typer.Typer(help="Manage tracked projects.")
@@ -1363,7 +1362,7 @@ def projects_root(ctx: typer.Context) -> None:
         cfg = _get_cfg()
         paths = cfg.get("projects", {}).get("paths", [])
 
-        from devpulse.analyzers.time_tracker import compute_time_per_project
+        from ghost_pulse.analyzers.time_tracker import compute_time_per_project
         week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S")
         time_data = compute_time_per_project(since=week_ago)
 
@@ -1394,7 +1393,7 @@ def projects_root(ctx: typer.Context) -> None:
             hours = f"{stats.get('total_minutes', 0)/60:.1f}h"
             table.add_row(proj_name, proj_path, hours)
         if not repo_rows:
-            console.print("[dim]No projects tracked. Run: devpulse init --path ~/your-projects[/dim]")
+            console.print("[dim]No projects tracked. Run: ghost init --path ~/your-projects[/dim]")
             return
         console.print(table)
 
@@ -1431,7 +1430,7 @@ def projects_remove(name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# devpulse export
+# ghost export
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -1478,20 +1477,20 @@ def export(
         output.write_text(content)
         console.print(f"[green]✓[/green] Exported {len(events)} events to {output}")
     else:
-        default_name = Path(f"devpulse_export_{from_date}_{to_date}{suffix}")
+        default_name = Path(f"ghost-pulse_export_{from_date}_{to_date}{suffix}")
         default_name.write_text(content)
         console.print(f"[green]✓[/green] Exported {len(events)} events to {default_name}")
 
 
 # ---------------------------------------------------------------------------
-# devpulse reset
+# ghost reset
 # ---------------------------------------------------------------------------
 
 @app.command()
 def reset(keep_config: bool = typer.Option(False, "--keep-config")) -> None:
     """Clear all collected data (with confirmation)."""
     confirmed = typer.confirm(
-        "This will permanently delete all DevPulse data. Continue?", default=False
+        "This will permanently delete all Ghost Pulse data. Continue?", default=False
     )
     if not confirmed:
         console.print("[yellow]Aborted.[/yellow]")
@@ -1505,7 +1504,7 @@ def reset(keep_config: bool = typer.Option(False, "--keep-config")) -> None:
     console.print("[green]✓[/green] Fresh database created")
 
     if not keep_config:
-        from devpulse.config import CONFIG_PATH
+        from ghost_pulse.config import CONFIG_PATH
         if CONFIG_PATH.exists():
             CONFIG_PATH.unlink()
             console.print("[green]✓[/green] Config deleted")
@@ -1514,7 +1513,7 @@ def reset(keep_config: bool = typer.Option(False, "--keep-config")) -> None:
 
 
 # ---------------------------------------------------------------------------
-# devpulse backfill
+# ghost backfill
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -1527,19 +1526,19 @@ def backfill(
 ) -> None:
     """Import shell history and git commits as a one-time backfill."""
     db.init_db()
-    from devpulse.collectors.shell import backfill_from_history
+    from ghost_pulse.collectors.shell import backfill_from_history
     with console.status("Importing shell history…"):
         n = backfill_from_history(shell=shell, limit=limit)
     console.print(f"[green]✓[/green] Imported {n} commands from shell history")
 
     if git:
-        from devpulse.collectors.git_collector import backfill_git_commits
-        from devpulse.config import load_config
+        from ghost_pulse.collectors.git_collector import backfill_git_commits
+        from ghost_pulse.config import load_config
         cfg = load_config()
         project_paths = cfg.get("projects", {}).get("paths", [])
         if not project_paths:
             console.print("[yellow]⚠[/yellow] No project paths configured — skipping git backfill")
-            console.print("  Run [bold]devpulse projects add <path>[/bold] first")
+            console.print("  Run [bold]ghost projects add <path>[/bold] first")
         else:
             with console.status("Importing git commit history…"):
                 gc = backfill_git_commits(
@@ -1551,7 +1550,7 @@ def backfill(
 
 
 # ---------------------------------------------------------------------------
-# devpulse web
+# ghost web
 # ---------------------------------------------------------------------------
 
 @app.command()
@@ -1559,12 +1558,12 @@ def web(
     port: int = typer.Option(8765, "--port", "-p", help="Port to listen on"),
     no_open: bool = typer.Option(False, "--no-open", help="Don't open browser automatically"),
 ) -> None:
-    """Start the DevPulse web UI (no extra dependencies required)."""
-    from devpulse.web.server import run
+    """Start the Ghost Pulse web UI (no extra dependencies required)."""
+    from ghost_pulse.web.server import run
     import threading, webbrowser, time
 
     url = f"http://localhost:{port}"
-    console.print(f"[green]✓[/green] DevPulse UI → [bold cyan]{url}[/bold cyan]")
+    console.print(f"[green]✓[/green] Ghost Pulse UI → [bold cyan]{url}[/bold cyan]")
     console.print("[dim]Press Ctrl+C to stop[/dim]")
 
     if not no_open:
@@ -1581,23 +1580,23 @@ def tui() -> None:
     """Launch the interactive k9s-inspired terminal UI."""
     db.init_db()
     try:
-        from devpulse.ui.tui import DevPulseTUI
+        from ghost_pulse.ui.tui import GhostPulseTUI
     except ImportError as exc:
         console.print(
             f"[red]TUI requires the `textual` package: {exc}[/red]\n"
             "[dim]Install with: pip install 'textual>=0.79'[/dim]"
         )
         raise typer.Exit(code=1)
-    DevPulseTUI().run()
+    GhostPulseTUI().run()
 
 
 # ---------------------------------------------------------------------------
-# devpulse fix-done  — manually close a fix window and record the fix
+# ghost fix-done  — manually close a fix window and record the fix
 # ---------------------------------------------------------------------------
 
 @app.command(name="fix-done")
 def fix_done(
-    error_id: Optional[int] = typer.Argument(None, help="Error memory ID (from devpulse recall)"),
+    error_id: Optional[int] = typer.Argument(None, help="Error memory ID (from ghost_pulse recall)"),
     commands: Optional[list[str]] = typer.Option(None, "--cmd", "-c", help="Commands that fixed it (repeat flag)"),
     note: Optional[str] = typer.Option(None, "--note", "-n", help="Short description of the fix"),
     project: Optional[str] = typer.Option(None, "--project", "-p", help="Project name"),
@@ -1608,16 +1607,16 @@ def fix_done(
     commands to the RAG knowledge base for future suggestions.
 
     Examples:
-      devpulse fix-done                          # closes most recent open window
-      devpulse fix-done 5 -c "pip install -e ." # close window for error #5
-      devpulse fix-done --note "updated deps"
+      ghost fix-done                          # closes most recent open window
+      ghost fix-done 5 -c "pip install -e ." # close window for error #5
+      ghost fix-done --note "updated deps"
     """
     db.init_db()
-    from devpulse.rag.fix_tracker import get_open_windows, close_fix_window
-    from devpulse.analyzers.error_memory import ErrorMemory
+    from ghost_pulse.rag.fix_tracker import get_open_windows, close_fix_window
+    from ghost_pulse.analyzers.error_memory import ErrorMemory
 
     cfg = _get_cfg()
-    from devpulse.llm.factory import get_provider
+    from ghost_pulse.llm.factory import get_provider
     em = ErrorMemory(llm_provider=get_provider(cfg))
 
     open_wins = get_open_windows()
@@ -1660,7 +1659,7 @@ def fix_done(
     if not fix_summary and fix_cmds:
         fix_summary = f"Run: {' → '.join(fix_cmds[:3])}"
 
-    from devpulse.rag.fix_tracker import capture_workdir_git_diff
+    from ghost_pulse.rag.fix_tracker import capture_workdir_git_diff
 
     fix_diff = capture_workdir_git_diff(win.get("workdir"))
 
@@ -1685,8 +1684,8 @@ def fix_done(
 
     # Try to embed (best-effort)
     try:
-        from devpulse.rag.embed_factory import get_embedding_provider
-        from devpulse.rag.vector_store import upsert_fix_embedding
+        from ghost_pulse.rag.embed_factory import get_embedding_provider
+        from ghost_pulse.rag.vector_store import upsert_fix_embedding
         embed = get_embedding_provider(cfg)
         if embed.is_available() and pattern:
             vec = embed.embed(pattern + " " + (fix_summary or ""))
@@ -1702,8 +1701,8 @@ def fix_done(
             f"  [green]✓[/green] Fix recorded for: [yellow]{pattern[:60] or 'error'}[/yellow]{dur_str}\n"
             + (f"  [bold]Fix:[/bold] {fix_summary}\n" if fix_summary else "")
             + (f"  [bold]Commands:[/bold] {' → '.join(fix_cmds[:3])}\n" if fix_cmds else "")
-            + f"\n  [dim]ID #{fix_record_id} — visible in: devpulse fix-history[/dim]",
-            title="[bold blue]DevPulse · Fix recorded[/bold blue]",
+            + f"\n  [dim]ID #{fix_record_id} — visible in: ghost fix-history[/dim]",
+            title="[bold blue]Ghost Pulse · Fix recorded[/bold blue]",
             border_style="green",
             box=box.ROUNDED,
         )
@@ -1711,7 +1710,7 @@ def fix_done(
 
 
 # ---------------------------------------------------------------------------
-# devpulse fix-suggest — get RAG-powered fix suggestions for a command
+# ghost fix-suggest — get RAG-powered fix suggestions for a command
 # ---------------------------------------------------------------------------
 
 @app.command(name="fix-suggest")
@@ -1725,16 +1724,16 @@ def fix_suggest(
     Searches your fix history using exact match → fuzzy token overlap → semantic embeddings.
 
     Examples:
-      devpulse fix-suggest "pytest tests/"
-      devpulse fix-suggest "docker build ." --project myapp
-      devpulse fix-suggest   # suggests for the most recently failed command
+      ghost fix-suggest "pytest tests/"
+      ghost fix-suggest "docker build ." --project myapp
+      ghost fix-suggest   # suggests for the most recently failed command
     """
     db.init_db()
     cfg = _get_cfg()
 
     # Auto-detect most recent failed command if not given
     if not command:
-        from devpulse.analyzers.time_tracker import _parse_ts
+        from ghost_pulse.analyzers.time_tracker import _parse_ts
         today_str = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S")
         events = db.query_events(event_type="shell_cmd", since=today_str, limit=200)
         failed = [e for e in reversed(events) if e.get("data", {}).get("exit_code", 0) != 0]
@@ -1744,8 +1743,8 @@ def fix_suggest(
         command = failed[0]["data"]["cmd"]
         console.print(f"[dim]Looking up fixes for most recent failure: [bold]{command[:60]}[/bold][/dim]\n")
 
-    from devpulse.rag.embed_factory import get_embedding_provider
-    from devpulse.rag.retriever import FixRetriever
+    from ghost_pulse.rag.embed_factory import get_embedding_provider
+    from ghost_pulse.rag.retriever import FixRetriever
 
     rag_cfg = cfg.get("rag", {})
     embed = get_embedding_provider(cfg)
@@ -1762,10 +1761,10 @@ def fix_suggest(
         console.print(
             Panel(
                 f"  [dim]No known fixes for: [yellow]{command[:60]}[/yellow][/dim]\n\n"
-                "  DevPulse learns from your fixes over time.\n"
-                "  After fixing a problem, run: [bold]devpulse fix-done[/bold]\n"
+                "  Ghost Pulse learns from your fixes over time.\n"
+                "  After fixing a problem, run: [bold]ghost fix-done[/bold]\n"
                 "  to record what you did so it can help next time.",
-                title="[bold blue]DevPulse · Fix suggest[/bold blue]",
+                title="[bold blue]Ghost Pulse · Fix suggest[/bold blue]",
                 border_style="blue",
                 box=box.ROUNDED,
             )
@@ -1800,7 +1799,7 @@ def fix_suggest(
     console.print(
         Panel(
             "\n".join(lines),
-            title="[bold blue]DevPulse · Fix suggestions[/bold blue]",
+            title="[bold blue]Ghost Pulse · Fix suggestions[/bold blue]",
             border_style="blue",
             box=box.ROUNDED,
         )
@@ -1808,7 +1807,7 @@ def fix_suggest(
 
 
 # ---------------------------------------------------------------------------
-# devpulse fix-history — browse the fix knowledge base
+# ghost fix-history — browse the fix knowledge base
 # ---------------------------------------------------------------------------
 
 @app.command(name="fix-history")
@@ -1819,7 +1818,7 @@ def fix_history(
 ) -> None:
     """Browse your fix knowledge base.
 
-    Shows all recorded fixes — both manually recorded (devpulse fix-done)
+    Shows all recorded fixes — both manually recorded (ghost fix-done)
     and automatically captured by the fix window tracker.
     """
     db.init_db()
@@ -1833,10 +1832,10 @@ def fix_history(
         msg = (
             f"[dim]No fix records for project '{project}'.[/dim]"
             if project
-            else "[dim]No fix records yet.\n\n  DevPulse automatically records fixes as you work.\n"
-               "  You can also run [bold]devpulse fix-done[/bold] after fixing an error.[/dim]"
+            else "[dim]No fix records yet.\n\n  Ghost Pulse automatically records fixes as you work.\n"
+               "  You can also run [bold]ghost fix-done[/bold] after fixing an error.[/dim]"
         )
-        console.print(Panel(msg, title="[bold blue]DevPulse · Fix history[/bold blue]", box=box.ROUNDED))
+        console.print(Panel(msg, title="[bold blue]Ghost Pulse · Fix history[/bold blue]", box=box.ROUNDED))
         return
 
     table = Table(
@@ -1863,12 +1862,12 @@ def fix_history(
             date,
         )
 
-    console.print(Panel(table, title="[bold blue]DevPulse · Fix history[/bold blue]", box=box.ROUNDED))
+    console.print(Panel(table, title="[bold blue]Ghost Pulse · Fix history[/bold blue]", box=box.ROUNDED))
     console.print(f"[dim]👤 = manual (fix-done)  🤖 = auto-detected   Total: {len(records)}[/dim]")
 
 
 # ---------------------------------------------------------------------------
-# devpulse fix-purge — reset fix knowledge tables
+# ghost fix-purge — reset fix knowledge tables
 # ---------------------------------------------------------------------------
 
 @app.command(name="fix-purge")
@@ -1896,14 +1895,14 @@ def fix_purge(
 
 
 # ---------------------------------------------------------------------------
-# devpulse fix-status — show open fix windows and RAG stats
+# ghost fix-status — show open fix windows and RAG stats
 # ---------------------------------------------------------------------------
 
 @app.command(name="fix-status")
 def fix_status() -> None:
     """Show open fix windows and fix knowledge base stats."""
     db.init_db()
-    from devpulse.rag.fix_tracker import get_open_windows, expire_stale_windows
+    from ghost_pulse.rag.fix_tracker import get_open_windows, expire_stale_windows
 
     # Expire stale windows first
     expired = expire_stale_windows()
@@ -1911,7 +1910,7 @@ def fix_status() -> None:
     stats = db.get_fix_stats()
 
     cfg = _get_cfg()
-    from devpulse.rag.embed_factory import get_embedding_provider
+    from ghost_pulse.rag.embed_factory import get_embedding_provider
     embed = get_embedding_provider(cfg)
     embed_status = f"[green]● {embed.name}[/green]" if embed.is_available() else "[red]○ none[/red]"
 
@@ -1944,7 +1943,7 @@ def fix_status() -> None:
                 f"[dim]{proj} · {since} · {cmds_count} cmds tracked[/dim]"
             )
         lines.append(
-            f"\n  [dim]Close with: [bold]devpulse fix-done[/bold][/dim]"
+            f"\n  [dim]Close with: [bold]ghost fix-done[/bold][/dim]"
         )
     else:
         lines.append("\n  [dim]No open fix windows.[/dim]")
@@ -1952,7 +1951,7 @@ def fix_status() -> None:
     console.print(
         Panel(
             "\n".join(lines),
-            title="[bold blue]DevPulse · Fix status[/bold blue]",
+            title="[bold blue]Ghost Pulse · Fix status[/bold blue]",
             border_style="blue",
             box=box.ROUNDED,
         )

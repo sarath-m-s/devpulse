@@ -7,9 +7,9 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable, Input, Static
 
-from devpulse.ui.tui import data as tui_data
-from devpulse.ui.tui.widgets import Panel, StatCard, StatRow
-from devpulse.ui.tui.vim_scroll import VimDataTable, VimVerticalScroll
+from ghost_pulse.ui.tui import data as tui_data
+from ghost_pulse.ui.tui.widgets import Panel, StatCard, StatRow
+from ghost_pulse.ui.tui.vim_scroll import VimDataTable, VimVerticalScroll
 
 
 class FixesScreen(VimVerticalScroll):
@@ -49,7 +49,7 @@ class FixesScreen(VimVerticalScroll):
             StatCard(label="Open windows", value="-"),
             id="fix-stat-row",
         )
-        with Panel("OPEN FIX WINDOWS — after a failed command; close with: devpulse fix-done"):
+        with Panel("OPEN FIX WINDOWS — after a failed command; close with: ghost fix-done"):
             yield Static(
                 "[dim]No open windows. Run a failing command in a git repo to open one.[/dim]",
                 id="fix-open",
@@ -100,7 +100,7 @@ class FixesScreen(VimVerticalScroll):
             cards[0].update_card(
                 value=en,
                 value_color="#27a644" if ok else "#e87b5a",
-                delta="ready" if ok else "install ollama or pip install devpulse[embeddings]",
+                delta="ready" if ok else "install ollama or pip install ghost-pulse[embeddings]",
             )
             cards[1].update_card(
                 value=str(data.get("fix_records_total", 0)),
@@ -173,7 +173,7 @@ class FixesScreen(VimVerticalScroll):
         if not sugg:
             out.update(
                 f"[dim]No matches for:[/dim] [yellow]{cmd[:70]}[/yellow]\n"
-                "[dim]Record fixes with `devpulse fix-done` after you solve an error.[/dim]"
+                "[dim]Record fixes with `ghost fix-done` after you solve an error.[/dim]"
             )
             return
         tier_sym = {"exact": "🎯", "fuzzy": "🔍", "semantic": "🧠"}

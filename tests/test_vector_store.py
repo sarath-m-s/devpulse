@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from devpulse import db
-from devpulse.rag.vector_store import (
+from ghost_pulse import db
+from ghost_pulse.rag.vector_store import (
     _cosine,
     _pack,
     _unpack,

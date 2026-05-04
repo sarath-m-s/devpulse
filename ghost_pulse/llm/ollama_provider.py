@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from devpulse.llm.base import LLMProvider, LLMResponse
+from ghost_pulse.llm.base import LLMProvider, LLMResponse
 
 
 class OllamaProvider(LLMProvider):

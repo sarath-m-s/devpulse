@@ -7,8 +7,8 @@ import re
 from datetime import datetime, timedelta
 from typing import Any
 
-from devpulse import db
-from devpulse.analyzers.toil import normalize_command
+from ghost_pulse import db
+from ghost_pulse.analyzers.toil import normalize_command
 
 # Error types mapped from common patterns in command strings
 _ERROR_TYPE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
@@ -158,8 +158,8 @@ class ErrorMemory:
             "Output ONLY the tip text. No preamble, no 'Tip:' prefix."
         )
         try:
-            from devpulse.llm.base import DEVPULSE_SYSTEM_PROMPT
-            resp = self.llm.analyze(prompt, system_prompt=DEVPULSE_SYSTEM_PROMPT)
+            from ghost_pulse.llm.base import GHOST_PULSE_SYSTEM_PROMPT
+            resp = self.llm.analyze(prompt, system_prompt=GHOST_PULSE_SYSTEM_PROMPT)
             tip = resp.content.strip()
             # Strip any "Tip:" or emoji prefix the LLM might prepend
             for prefix in ("Tip:", "💡", "Fix:", "Note:"):

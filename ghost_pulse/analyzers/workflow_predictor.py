@@ -8,8 +8,8 @@ from collections import Counter
 from datetime import datetime, timedelta
 from typing import Any
 
-from devpulse import db
-from devpulse.analyzers.toil import normalize_command
+from ghost_pulse import db
+from ghost_pulse.analyzers.toil import normalize_command
 
 
 def _seq_hash(project: str, sequence: list[str]) -> str:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from devpulse.llm.base import LLMProvider, LLMResponse
+from ghost_pulse.llm.base import LLMProvider, LLMResponse
 
 
 class GroqProvider(LLMProvider):
@@ -25,7 +25,7 @@ class GroqProvider(LLMProvider):
                 self._client = Groq(api_key=self._api_key)
             except ImportError as exc:
                 raise RuntimeError(
-                    "groq package not installed. Run: pip install 'devpulse[groq]'"
+                    "groq package not installed. Run: pip install 'ghost-pulse[groq]'"
                 ) from exc
         return self._client
 

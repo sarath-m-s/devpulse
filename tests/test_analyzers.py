@@ -4,10 +4,10 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from devpulse import db
-from devpulse.analyzers.toil import detect_toil, normalize_command, get_ranked_patterns
-from devpulse.analyzers.time_tracker import compute_time_per_project
-from devpulse.analyzers.context_switch import compute_context_switches
+from ghost_pulse import db
+from ghost_pulse.analyzers.toil import detect_toil, normalize_command, get_ranked_patterns
+from ghost_pulse.analyzers.time_tracker import compute_time_per_project
+from ghost_pulse.analyzers.context_switch import compute_context_switches
 
 
 @pytest.fixture(autouse=True)
@@ -46,7 +46,7 @@ class TestToilDetector:
 
     def test_pattern_hash_stable(self):
         cmds = ["git stash", "git checkout main"]
-        from devpulse.analyzers.toil import _seq_hash
+        from ghost_pulse.analyzers.toil import _seq_hash
         h1 = _seq_hash(cmds)
         h2 = _seq_hash(cmds)
         assert h1 == h2

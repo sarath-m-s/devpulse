@@ -11,11 +11,11 @@ import json
 import re
 from typing import Any
 
-from devpulse import db
-from devpulse.analyzers.toil import normalize_command
-from devpulse.analyzers.error_memory import _error_hash
-from devpulse.rag.embeddings import EmbeddingProvider, NullEmbeddingProvider
-from devpulse.rag.vector_store import search_similar_fixes
+from ghost_pulse import db
+from ghost_pulse.analyzers.toil import normalize_command
+from ghost_pulse.analyzers.error_memory import _error_hash
+from ghost_pulse.rag.embeddings import EmbeddingProvider, NullEmbeddingProvider
+from ghost_pulse.rag.vector_store import search_similar_fixes
 
 
 def _tokenize(text: str) -> set[str]:

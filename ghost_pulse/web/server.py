@@ -1,4 +1,4 @@
-"""Lightweight stdlib-only HTTP server for the DevPulse web UI."""
+"""Lightweight stdlib-only HTTP server for the Ghost Pulse web UI."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def _day_end(days_ago: int) -> str:
     )
 
 
-class DevPulseHandler(BaseHTTPRequestHandler):
+class GhostPulseHandler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
@@ -147,8 +147,8 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Stats endpoints ──────────────────────────────────────────────
 
     def _api_stats_today(self) -> None:
-        from devpulse import db
-        from devpulse.analyzers import time_tracker, context_switch
+        from ghost_pulse import db
+        from ghost_pulse.analyzers import time_tracker, context_switch
 
         since = _today_start()
         time_data = time_tracker.compute_time_per_project(since=since)
@@ -198,7 +198,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
         }))
 
     def _api_stats_week(self) -> None:
-        from devpulse.analyzers import time_tracker, context_switch
+        from ghost_pulse.analyzers import time_tracker, context_switch
 
         since = _week_start()
         time_data = time_tracker.compute_time_per_project(since=since)
@@ -275,7 +275,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Projects ─────────────────────────────────────────────────────
 
     def _api_projects(self) -> None:
-        from devpulse.analyzers import time_tracker
+        from ghost_pulse.analyzers import time_tracker
 
         week_since = _week_start()
         month_since = _month_start()
@@ -310,7 +310,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Toil ─────────────────────────────────────────────────────────
 
     def _api_toil(self) -> None:
-        from devpulse.analyzers.toil import get_ranked_patterns, estimate_time_wasted
+        from ghost_pulse.analyzers.toil import get_ranked_patterns, estimate_time_wasted
 
         patterns = get_ranked_patterns()[:10]
         result = [
@@ -328,7 +328,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Events ───────────────────────────────────────────────────────
 
     def _api_events(self, limit: int) -> None:
-        from devpulse import db
+        from ghost_pulse import db
 
         since = _week_start()
         events = db.query_events(since=since)[-limit:]
@@ -382,7 +382,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Focus ────────────────────────────────────────────────────────
 
     def _api_focus(self) -> None:
-        from devpulse.analyzers import context_switch, time_tracker
+        from ghost_pulse.analyzers import context_switch, time_tracker
 
         today = context_switch.compute_context_switches(since=_today_start())
         week = context_switch.compute_context_switches(since=_week_start())
@@ -451,8 +451,8 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Status ───────────────────────────────────────────────────────
 
     def _api_status(self) -> None:
-        from devpulse.daemon import is_running, _read_pid
-        from devpulse import db
+        from ghost_pulse.daemon import is_running, _read_pid
+        from ghost_pulse import db
 
         pid = _read_pid()
         db_path = db.get_db_path()
@@ -480,13 +480,13 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Config ───────────────────────────────────────────────────────
 
     def _api_config_get(self) -> None:
-        from devpulse.config import load_config
+        from ghost_pulse.config import load_config
 
         cfg = load_config()
         self._send(200, _json(cfg))
 
     def _api_config_post(self, payload: dict) -> None:
-        from devpulse.config import load_config, save_config, set_config_value
+        from ghost_pulse.config import load_config, save_config, set_config_value
 
         cfg = load_config()
         for key, value in payload.items():
@@ -499,8 +499,8 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Insights ─────────────────────────────────────────────────────
 
     def _api_insights_get(self) -> None:
-        from devpulse.config import load_config
-        from devpulse.llm.factory import get_provider
+        from ghost_pulse.config import load_config
+        from ghost_pulse.llm.factory import get_provider
 
         cfg = load_config()
         provider = get_provider(cfg)
@@ -511,7 +511,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
         insights_text = ""
         if available:
             try:
-                from devpulse.generators.report_gen import generate_insights
+                from ghost_pulse.generators.report_gen import generate_insights
                 insights_text = generate_insights(provider, days=30)
             except Exception as exc:
                 insights_text = f"Error generating insights: {exc}"
@@ -524,10 +524,10 @@ class DevPulseHandler(BaseHTTPRequestHandler):
         }))
 
     def _api_insights_ask(self, payload: dict) -> None:
-        from devpulse.config import load_config
-        from devpulse.llm.factory import get_provider
-        from devpulse.generators.report_gen import _build_activity_summary
-        from devpulse.llm.base import DEVPULSE_SYSTEM_PROMPT
+        from ghost_pulse.config import load_config
+        from ghost_pulse.llm.factory import get_provider
+        from ghost_pulse.generators.report_gen import _build_activity_summary
+        from ghost_pulse.llm.base import GHOST_PULSE_SYSTEM_PROMPT
 
         question = payload.get("question", "").strip()
         if not question:
@@ -538,14 +538,14 @@ class DevPulseHandler(BaseHTTPRequestHandler):
         provider = get_provider(cfg)
         if not provider.is_available():
             self._send(200, _json({
-                "answer": "No LLM provider is configured or available. Run `devpulse config set llm.provider ollama` to set one up.",
+                "answer": "No LLM provider is configured or available. Run `ghost config set llm.provider ollama` to set one up.",
             }))
             return
 
         summary = _build_activity_summary(days=30)
         prompt = f"{summary}\n\nUser question: {question}\n\nAnswer concisely based on the data above."
         try:
-            response = provider.analyze(prompt, system_prompt=DEVPULSE_SYSTEM_PROMPT)
+            response = provider.analyze(prompt, system_prompt=GHOST_PULSE_SYSTEM_PROMPT)
             self._send(200, _json({"answer": response.content.strip()}))
         except Exception as exc:
             self._send(200, _json({"answer": f"LLM error: {exc}"}))
@@ -553,7 +553,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Branches ─────────────────────────────────────────────────────
 
     def _api_branches(self) -> None:
-        from devpulse import db
+        from ghost_pulse import db
 
         since = _week_start()
         commit_events = db.query_events(event_type="git_commit", since=since)
@@ -609,10 +609,10 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Fix knowledge base (RAG) ────────────────────────────────────
 
     def _api_fix_status(self) -> None:
-        from devpulse import db
-        from devpulse.config import load_config
-        from devpulse.rag.embed_factory import get_embedding_provider
-        from devpulse.rag.fix_tracker import expire_stale_windows, get_open_windows
+        from ghost_pulse import db
+        from ghost_pulse.config import load_config
+        from ghost_pulse.rag.embed_factory import get_embedding_provider
+        from ghost_pulse.rag.fix_tracker import expire_stale_windows, get_open_windows
 
         expired = expire_stale_windows()
         open_wins = get_open_windows()
@@ -647,7 +647,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
         }))
 
     def _api_fix_history(self, limit: int, project: str | None) -> None:
-        from devpulse import db
+        from ghost_pulse import db
 
         rows = db.get_fix_records(project=project, limit=min(limit, 200))
         out = []
@@ -665,9 +665,9 @@ class DevPulseHandler(BaseHTTPRequestHandler):
         self._send(200, _json({"records": out}))
 
     def _api_fix_suggest(self, payload: dict) -> None:
-        from devpulse.config import load_config
-        from devpulse.rag.embed_factory import get_embedding_provider
-        from devpulse.rag.retriever import FixRetriever
+        from ghost_pulse.config import load_config
+        from ghost_pulse.rag.embed_factory import get_embedding_provider
+        from ghost_pulse.rag.retriever import FixRetriever
 
         command = (payload.get("command") or "").strip()
         if not command:
@@ -702,7 +702,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
     # ── Daemon control ───────────────────────────────────────────────
 
     def _api_daemon_restart(self) -> None:
-        from devpulse.daemon import stop_daemon, start_daemon
+        from ghost_pulse.daemon import stop_daemon, start_daemon
         try:
             stop_daemon()
         except Exception:
@@ -714,7 +714,7 @@ class DevPulseHandler(BaseHTTPRequestHandler):
             self._send(500, _json({"error": str(exc)}))
 
     def _api_daemon_stop(self) -> None:
-        from devpulse.daemon import stop_daemon
+        from ghost_pulse.daemon import stop_daemon
         try:
             stop_daemon()
             self._send(200, _json({"ok": True, "message": "Daemon stopped"}))
@@ -723,11 +723,11 @@ class DevPulseHandler(BaseHTTPRequestHandler):
 
 
 def run(port: int = 8765) -> None:
-    from devpulse import db
+    from ghost_pulse import db
     db.init_db()
 
-    server = HTTPServer(("127.0.0.1", port), DevPulseHandler)
-    print(f"DevPulse UI → http://localhost:{port}")
+    server = HTTPServer(("127.0.0.1", port), GhostPulseHandler)
+    print(f"Ghost Pulse UI → http://localhost:{port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

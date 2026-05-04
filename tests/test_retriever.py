@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from devpulse import db
-from devpulse.rag.embeddings import NullEmbeddingProvider
-from devpulse.rag.retriever import FixRetriever, _jaccard, _tokenize
+from ghost_pulse import db
+from ghost_pulse.rag.embeddings import NullEmbeddingProvider
+from ghost_pulse.rag.retriever import FixRetriever, _jaccard, _tokenize
 
 
 @pytest.fixture(autouse=True)
@@ -60,7 +60,7 @@ def test_tier1_exact_match_from_error_memory():
     )
 
     # We need the hash to match what the retriever computes
-    from devpulse.analyzers.error_memory import _error_hash
+    from ghost_pulse.analyzers.error_memory import _error_hash
     ehash = _error_hash("pytest tests/", 1)
     db.upsert_error_memory(
         error_hash=ehash,
@@ -86,7 +86,7 @@ def test_tier1_exact_match_from_error_memory():
 
 def test_tier2_fuzzy_match():
     # Insert a fix record for a similar command
-    from devpulse.analyzers.error_memory import _error_hash
+    from ghost_pulse.analyzers.error_memory import _error_hash
     ehash = _error_hash("docker build -t myapp .", 1)
     db.upsert_fix_record(
         error_hash=ehash,
@@ -130,7 +130,7 @@ def test_no_suggestions_when_db_empty():
 
 
 def test_top_k_limit():
-    from devpulse.analyzers.error_memory import _error_hash
+    from ghost_pulse.analyzers.error_memory import _error_hash
     # Insert multiple error records
     for i in range(10):
         ehash = _error_hash(f"pytest test_{i}.py", 1)

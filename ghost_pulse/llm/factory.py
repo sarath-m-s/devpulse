@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from devpulse.llm.base import LLMProvider
-from devpulse.llm.ollama_provider import OllamaProvider
-from devpulse.llm.claude_provider import ClaudeProvider
-from devpulse.llm.openai_provider import OpenAIProvider
-from devpulse.llm.groq_provider import GroqProvider
+from ghost_pulse.llm.base import LLMProvider
+from ghost_pulse.llm.ollama_provider import OllamaProvider
+from ghost_pulse.llm.claude_provider import ClaudeProvider
+from ghost_pulse.llm.openai_provider import OpenAIProvider
+from ghost_pulse.llm.groq_provider import GroqProvider
 
 
 class NoopProvider(LLMProvider):
@@ -22,9 +22,9 @@ class NoopProvider(LLMProvider):
         return False
 
     def analyze(self, prompt: str, system_prompt: str = "") -> "LLMResponse":  # type: ignore[name-defined]
-        from devpulse.llm.base import LLMResponse
+        from ghost_pulse.llm.base import LLMResponse
         return LLMResponse(
-            content="[LLM not configured. Run: devpulse config providers]",
+            content="[LLM not configured. Run: ghost config providers]",
             model="none",
             provider="none",
         )

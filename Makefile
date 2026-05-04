@@ -10,10 +10,10 @@ test:
 	pytest tests/ -v
 
 test-cov:
-	pytest tests/ --cov=devpulse --cov-report=term-missing
+	pytest tests/ --cov=ghost_pulse --cov-report=term-missing
 
 lint:
-	python -m py_compile devpulse/**/*.py devpulse/*.py
+	python -m py_compile ghost_pulse/**/*.py ghost_pulse/*.py
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
@@ -21,7 +21,7 @@ clean:
 	rm -rf .pytest_cache .coverage dist build *.egg-info
 
 run-init:
-	devpulse init
+	ghost init
 
 run-status:
-	devpulse status
+	ghost status

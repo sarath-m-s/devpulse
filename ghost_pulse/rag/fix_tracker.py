@@ -2,7 +2,7 @@
 
 A "fix window" opens when a command fails and closes when:
   - a subsequent command succeeds (auto-resolved)
-  - the developer runs `devpulse fix-done` (manually resolved)
+  - the developer runs `ghost fix-done` (manually resolved)
   - a git commit is detected (commit-resolved)
   - the window exceeds the expiry threshold (abandoned)
 """
@@ -15,9 +15,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from devpulse import db
-from devpulse.analyzers.toil import normalize_command
-from devpulse.analyzers.error_memory import _error_hash
+from ghost_pulse import db
+from ghost_pulse.analyzers.toil import normalize_command
+from ghost_pulse.analyzers.error_memory import _error_hash
 
 
 # Max age before a window is considered abandoned

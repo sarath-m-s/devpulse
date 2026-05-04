@@ -1,4 +1,4 @@
-"""SQLite database layer for DevPulse."""
+"""SQLite database layer for Ghost Pulse."""
 
 from __future__ import annotations
 
@@ -21,10 +21,12 @@ def set_db_path(path: Path) -> None:
 
 
 def get_db_path() -> Path:
-    """Return configured DB path, defaulting to ~/.devpulse/devpulse.db."""
+    """Return configured DB path, defaulting to ~/.ghost-pulse/ghost-pulse.db."""
     if _DB_PATH is not None:
         return _DB_PATH
-    return Path.home() / ".devpulse" / "devpulse.db"
+    from ghost_pulse.config import GHOST_PULSE_DIR
+
+    return GHOST_PULSE_DIR / "ghost-pulse.db"
 
 
 @contextmanager

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from devpulse.rag.embeddings import EmbeddingProvider, NullEmbeddingProvider
+from ghost_pulse.rag.embeddings import EmbeddingProvider, NullEmbeddingProvider
 
 
 def get_embedding_provider(cfg: dict[str, Any]) -> EmbeddingProvider:
@@ -48,20 +48,20 @@ def get_embedding_provider(cfg: dict[str, Any]) -> EmbeddingProvider:
 
 
 def _make_local(embed_cfg: dict) -> EmbeddingProvider:
-    from devpulse.rag.embed_local import LocalEmbeddingProvider
+    from ghost_pulse.rag.embed_local import LocalEmbeddingProvider
     model = embed_cfg.get("local_model", "all-MiniLM-L6-v2")
     return LocalEmbeddingProvider(model=model)
 
 
 def _make_ollama(cfg: dict, embed_cfg: dict) -> EmbeddingProvider:
-    from devpulse.rag.embed_ollama import OllamaEmbeddingProvider
+    from ghost_pulse.rag.embed_ollama import OllamaEmbeddingProvider
     host = embed_cfg.get("ollama_host") or cfg.get("llm", {}).get("ollama", {}).get("host", "http://localhost:11434")
     model = embed_cfg.get("ollama_model", "nomic-embed-text")
     return OllamaEmbeddingProvider(host=host, model=model)
 
 
 def _make_openai(cfg: dict, embed_cfg: dict) -> EmbeddingProvider:
-    from devpulse.rag.embed_openai import OpenAIEmbeddingProvider
+    from ghost_pulse.rag.embed_openai import OpenAIEmbeddingProvider
     api_key = embed_cfg.get("openai_api_key") or cfg.get("llm", {}).get("openai", {}).get("api_key", "")
     model = embed_cfg.get("openai_model", "text-embedding-3-small")
     base_url = embed_cfg.get("openai_base_url") or cfg.get("llm", {}).get("openai", {}).get("base_url", "")

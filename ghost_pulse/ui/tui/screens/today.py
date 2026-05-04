@@ -8,9 +8,9 @@ from datetime import datetime
 from textual.app import ComposeResult
 from textual.widgets import Static
 
-from devpulse.ui.tui import data as tui_data
-from devpulse.ui.tui.widgets import BarChart, Panel, StatCard, StatRow
-from devpulse.ui.tui.vim_scroll import VimVerticalScroll
+from ghost_pulse.ui.tui import data as tui_data
+from ghost_pulse.ui.tui.widgets import BarChart, Panel, StatCard, StatRow
+from ghost_pulse.ui.tui.vim_scroll import VimVerticalScroll
 
 
 def _fmt(m: int | float) -> str:
@@ -215,7 +215,7 @@ class TodayScreen(VimVerticalScroll):
             pred_widget.update(
                 f"  [bold #fbbf24]⚡[/bold #fbbf24] [bold]{predicted['project']}[/bold]: "
                 f"[#f7f8f8]{cmds_str}[/#f7f8f8]  [dim]({conf_pct} confidence)[/dim]\n"
-                f"  [dim]Run: devpulse next {predicted['project']}[/dim]"
+                f"  [dim]Run: ghost next {predicted['project']}[/dim]"
             )
         else:
             pred_widget.update("[dim]No prediction available — keep using your shell to build patterns[/dim]")

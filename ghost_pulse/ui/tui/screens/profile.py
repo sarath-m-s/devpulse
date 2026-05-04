@@ -7,9 +7,9 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.widgets import Static
 
-from devpulse.ui.tui import data as tui_data
-from devpulse.ui.tui.widgets import Panel, StatCard, StatRow
-from devpulse.ui.tui.vim_scroll import VimVerticalScroll
+from ghost_pulse.ui.tui import data as tui_data
+from ghost_pulse.ui.tui.widgets import Panel, StatCard, StatRow
+from ghost_pulse.ui.tui.vim_scroll import VimVerticalScroll
 
 
 _HOUR_BLOCKS = "▁▂▃▄▅▆▇█"

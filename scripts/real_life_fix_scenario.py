@@ -8,7 +8,7 @@ Real-life fix-window scenario (runnable demo).
 
 Usage:
   python scripts/real_life_fix_scenario.py           # isolated DB under tempfile
-  python scripts/real_life_fix_scenario.py --real-db # uses ~/.devpulse/devpulse.db
+  python scripts/real_life_fix_scenario.py --real-db # uses ~/.ghost-pulse/ghost-pulse.db
 
 Requires: git on PATH. Does not require pytest.
 """
@@ -22,7 +22,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Repo root on sys.path for `python scripts/...` from devpulse checkout
+# Repo root on sys.path for `python scripts/...` from ghost_pulse checkout
 _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -65,7 +65,7 @@ def main() -> None:
     ap.add_argument(
         "--real-db",
         action="store_true",
-        help="Use ~/.devpulse/devpulse.db (otherwise a temp sqlite file)",
+        help="Use ~/.ghost-pulse/ghost-pulse.db (otherwise a temp sqlite file)",
     )
     ap.add_argument(
         "--no-purge",
@@ -74,20 +74,20 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    from devpulse import db
-    from devpulse.collectors.shell import log_command
-    from devpulse.rag.fix_tracker import get_open_windows
+    from ghost_pulse import db
+    from ghost_pulse.collectors.shell import log_command
+    from ghost_pulse.rag.fix_tracker import get_open_windows
 
     if args.real_db:
-        db.set_db_path(None)  # default ~/.devpulse/devpulse.db
+        db.set_db_path(None)  # default ~/.ghost-pulse/ghost-pulse.db
     else:
-        db.set_db_path(Path(tempfile.mkdtemp(prefix="devpulse_scenario_")) / "scenario.db")
+        db.set_db_path(Path(tempfile.mkdtemp(prefix="ghost_pulse_scenario_")) / "scenario.db")
 
     db.init_db()
     if not args.no_purge and not args.real_db:
         db.purge_fix_intel()
 
-    with tempfile.TemporaryDirectory(prefix="devpulse_fix_repo_") as tmp:
+    with tempfile.TemporaryDirectory(prefix="ghost_pulse_fix_repo_") as tmp:
         repo = Path(tmp)
         fail_cmd = _setup_repo(repo)
         repo_s = str(repo)
@@ -105,9 +105,9 @@ def main() -> None:
         log_command("git status --short", repo_s, exit_code=0, duration_ms=20, session_id="scenario-1")
         print(f"  Open windows: {len(get_open_windows())} (expect 1)")
 
-        print("─── Step 3: DevPulse meta (ignored for close — not appended to trail) ───")
+        print("─── Step 3: Ghost Pulse meta (ignored for close — not appended to trail) ───")
         log_command(
-            "python -m devpulse.cli fix-status",
+            "python -m ghost_pulse.cli fix-status",
             repo_s,
             exit_code=0,
             duration_ms=50,
@@ -140,9 +140,9 @@ def main() -> None:
     else:
         print("  fix_diff: (none — ensure workdir was set on failure; git repo must exist)")
 
-    from devpulse.config import load_config
-    from devpulse.rag.embed_factory import get_embedding_provider
-    from devpulse.rag.retriever import FixRetriever
+    from ghost_pulse.config import load_config
+    from ghost_pulse.rag.embed_factory import get_embedding_provider
+    from ghost_pulse.rag.retriever import FixRetriever
 
     cfg = load_config()
     rag_cfg = cfg.get("rag", {})

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from devpulse.rag.embeddings import EmbeddingProvider
+from ghost_pulse.rag.embeddings import EmbeddingProvider
 
 _DEFAULT_MODEL = "nomic-embed-text"
 _DEFAULT_HOST = "http://localhost:11434"

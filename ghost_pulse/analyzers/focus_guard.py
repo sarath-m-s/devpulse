@@ -6,7 +6,7 @@ import subprocess
 from datetime import datetime, timedelta
 from typing import Any
 
-from devpulse import db
+from ghost_pulse import db
 
 
 def _parse_ts(ts: str) -> datetime:
@@ -79,7 +79,7 @@ def _send_notification(title: str, message: str, method: str) -> None:
             pass
     if method in ("terminal", "both"):
         # Bell + printed message
-        print(f"\a[DevPulse] {title}: {message}")
+        print(f"\a[Ghost Pulse] {title}: {message}")
 
 
 class FocusGuard:

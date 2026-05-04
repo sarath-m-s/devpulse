@@ -11,7 +11,7 @@ import math
 import struct
 from typing import Any
 
-from devpulse import db as _db
+from ghost_pulse import db as _db
 
 
 def _pack(vec: list[float]) -> bytes:

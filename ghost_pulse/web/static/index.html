@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DevPulse — Dashboard</title>
+  <title>Ghost Pulse — Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -236,7 +236,7 @@
         <path d="M7 4v3l2 1.5" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
-    <span class="topbar-name">DevPulse</span>
+    <span class="topbar-name">Ghost Pulse</span>
   </a>
   <div class="topbar-sep"></div>
   <span class="topbar-addr" id="topbar-addr">localhost:8765</span>
@@ -496,10 +496,10 @@
         <div class="panel">
           <div class="panel-header"><span class="panel-title">Terminal commands</span></div>
           <div class="panel-body-sm" style="font-size:12px;color:var(--ink-muted);line-height:1.8;font-family:var(--mono)">
-            devpulse fix-status<br/>
-            devpulse fix-history<br/>
-            devpulse fix-suggest &quot;pytest tests/&quot;<br/>
-            devpulse fix-done
+            ghost fix-status<br/>
+            ghost fix-history<br/>
+            ghost fix-suggest &quot;pytest tests/&quot;<br/>
+            ghost fix-done
           </div>
         </div>
       </div>
@@ -580,7 +580,7 @@
         <div class="panel-body"><div class="insights-list" id="full-insights-list"><div class="loading">Loading insights…</div></div></div>
       </div>
       <div class="panel">
-        <div class="panel-header"><span class="panel-title">Ask DevPulse</span><span class="tag tag-muted">Natural language query</span></div>
+        <div class="panel-header"><span class="panel-title">Ask Ghost Pulse</span><span class="tag tag-muted">Natural language query</span></div>
         <div class="panel-body">
           <div style="display:flex;gap:8px;margin-bottom:12px">
             <input id="insight-query" type="text" placeholder="e.g. What project should I focus on tomorrow?" style="flex:1;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:8px 12px;font-size:13px;color:var(--ink);font-family:var(--font);outline:none;" />
@@ -595,7 +595,7 @@
     <!-- CONFIG -->
     <div class="view" id="view-config">
       <div class="page-header">
-        <div><div class="page-title">Configuration</div><div class="page-sub">devpulse config · ~/.devpulse/config.toml</div></div>
+        <div><div class="page-title">Configuration</div><div class="page-sub">ghost config · ~/.ghost-pulse/config.toml</div></div>
         <div class="header-actions"><button class="btn btn-accent" id="save-config-btn">Save changes</button></div>
       </div>
 
@@ -666,7 +666,7 @@
         <div class="panel">
           <div class="panel-header"><span class="panel-title">Web UI</span></div>
           <div class="config-section">
-            <div class="config-row"><div><div class="config-key">Port</div><div class="config-desc">Port for devpulse web server</div></div><code class="config-val" id="cfg-port">8765</code></div>
+            <div class="config-row"><div><div class="config-key">Port</div><div class="config-desc">Port for ghost web server</div></div><code class="config-val" id="cfg-port">8765</code></div>
             <div class="config-row"><div><div class="config-key">Bind address</div><div class="config-desc">Network interface to bind to</div></div><code class="config-val">127.0.0.1</code></div>
           </div>
         </div>
@@ -792,7 +792,7 @@
       return `<div class="toil-item">
         <div class="toil-header"><span class="toil-cmd">${cmd}</span><span class="toil-freq">×${p.count}</span></div>
         <div class="toil-body">
-          <span class="toil-suggest">→ devpulse suggest ${p.id || i}</span>
+          <span class="toil-suggest">→ ghost suggest ${p.id || i}</span>
           <button class="toil-apply" data-i="${i}" ${applied ? 'disabled style="color:var(--success);border-color:rgba(39,166,68,0.3);background:rgba(39,166,68,0.08)"' : ''}>${applied ? '✓ Applied' : 'Apply'}</button>
         </div>
         <div class="toil-meta">${wastedStr}</div>
@@ -1189,7 +1189,7 @@
       document.getElementById('insights-provider-tag').textContent = `${data.provider||'—'} · ${data.model||'—'}`;
 
       if (!data.available) {
-        il.innerHTML = `<div class="insight-item"><div class="insight-icon" style="background:rgba(217,119,6,0.1)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 3v3.5" stroke="#d97706" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="9" r=".8" fill="#d97706"/></svg></div><span class="insight-text"><strong>No LLM provider configured.</strong> Run <code>devpulse config set llm.provider ollama</code> to enable AI insights.</span></div>`;
+        il.innerHTML = `<div class="insight-item"><div class="insight-icon" style="background:rgba(217,119,6,0.1)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 3v3.5" stroke="#d97706" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="9" r=".8" fill="#d97706"/></svg></div><span class="insight-text"><strong>No LLM provider configured.</strong> Run <code>ghost config set llm.provider ollama</code> to enable AI insights.</span></div>`;
         return;
       }
       if (data.insights) {
@@ -1278,7 +1278,7 @@
       document.getElementById('fix-hist-tag').textContent = `${recs.length} shown`;
       const tb = document.getElementById('fix-history-table');
       if (!recs.length) {
-        tb.innerHTML = '<tbody><tr><td colspan="5" style="padding:16px" class="empty">No fix records yet. They appear after a resolved fix window or <code>devpulse fix-done</code>.</td></tr></tbody>';
+        tb.innerHTML = '<tbody><tr><td colspan="5" style="padding:16px" class="empty">No fix records yet. They appear after a resolved fix window or <code>ghost fix-done</code>.</td></tr></tbody>';
       } else {
         tb.innerHTML =
           '<thead><tr><th>ID</th><th>Error pattern</th><th>Summary</th><th>Commands</th><th>Project</th></tr></thead><tbody>' +
@@ -1309,7 +1309,7 @@
       const data = await apiPost('/api/fix/suggest', { command: cmd, exit_code, project, top_k: 6 });
       const sugg = data.suggestions || [];
       if (!sugg.length) {
-        el.innerHTML = '<div class="empty">No matches. Teach DevPulse by closing fix windows or running <code>devpulse fix-done</code>.</div>';
+        el.innerHTML = '<div class="empty">No matches. Teach Ghost Pulse by closing fix windows or running <code>ghost fix-done</code>.</div>';
         return;
       }
       el.innerHTML = sugg.map(s => {

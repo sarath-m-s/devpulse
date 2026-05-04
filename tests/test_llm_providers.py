@@ -2,12 +2,12 @@
 
 import pytest
 
-from devpulse.llm.base import LLMProvider, LLMResponse
-from devpulse.llm.factory import NoopProvider, get_provider, probe_all
-from devpulse.llm.ollama_provider import OllamaProvider
-from devpulse.llm.claude_provider import ClaudeProvider
-from devpulse.llm.openai_provider import OpenAIProvider
-from devpulse.llm.groq_provider import GroqProvider
+from ghost_pulse.llm.base import LLMProvider, LLMResponse
+from ghost_pulse.llm.factory import NoopProvider, get_provider, probe_all
+from ghost_pulse.llm.ollama_provider import OllamaProvider
+from ghost_pulse.llm.claude_provider import ClaudeProvider
+from ghost_pulse.llm.openai_provider import OpenAIProvider
+from ghost_pulse.llm.groq_provider import GroqProvider
 
 
 class _FakeProvider(LLMProvider):

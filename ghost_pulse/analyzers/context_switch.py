@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from devpulse import db
+from ghost_pulse import db
 
 _HOME = str(Path.home())
 
