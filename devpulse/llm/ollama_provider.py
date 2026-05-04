@@ -12,7 +12,7 @@ from devpulse.llm.base import LLMProvider, LLMResponse
 class OllamaProvider(LLMProvider):
     """Calls a locally running Ollama server."""
 
-    DEFAULT_MODEL = "llama3.1"
+    DEFAULT_MODEL = "llama3.2:3b"
     DEFAULT_HOST = "http://localhost:11434"
 
     def __init__(self, host: str = "", model: str = "") -> None:

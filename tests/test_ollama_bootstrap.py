@@ -6,26 +6,33 @@ import pytest
 
 from devpulse.bootstrap.ollama_setup import (
     _model_present,
+    _ollama_compare_key,
     _parse_installed_models,
     pull_models,
     run_ollama_bootstrap,
 )
 
 
+def test_ollama_compare_key():
+    assert _ollama_compare_key("llama3.2:3b:latest") == "llama3.2:3b"
+    assert _ollama_compare_key("llama3.2:3b") == "llama3.2:3b"
+    assert _ollama_compare_key("llama3.1:latest") == "llama3.1"
+
+
 def test_parse_installed_models():
-    data = {"models": [{"name": "llama3.1:latest"}, {"name": "nomic-embed-text"}]}
+    data = {"models": [{"name": "llama3.2:3b:latest"}, {"name": "nomic-embed-text"}]}
     names = _parse_installed_models(data)
-    assert "llama3.1:latest" in names
-    assert "llama3.1" in names
+    assert "llama3.2:3b:latest" in names
+    assert "llama3.2:3b" in names
     assert "nomic-embed-text" in names
 
 
 @pytest.mark.parametrize(
     "installed,want,expected",
     [
-        ({"llama3.1:latest"}, "llama3.1", True),
+        ({"llama3.2:3b:latest"}, "llama3.2:3b", True),
         ({"nomic-embed-text"}, "nomic-embed-text", True),
-        ({"other"}, "llama3.1", False),
+        ({"other"}, "llama3.2:3b", False),
     ],
 )
 def test_model_present(installed, want, expected):
@@ -57,8 +64,8 @@ def test_pull_models_skips_when_already_present():
     ) as run:
         get.return_value.status_code = 200
         get.return_value.json.return_value = {
-            "models": [{"name": "llama3.1:latest"}, {"name": "nomic-embed-text:latest"}]
+            "models": [{"name": "llama3.2:3b:latest"}, {"name": "nomic-embed-text:latest"}]
         }
-        ok = pull_models(console, "http://localhost:11434", ("llama3.1", "nomic-embed-text"))
+        ok = pull_models(console, "http://localhost:11434", ("llama3.2:3b", "nomic-embed-text"))
         assert ok is True
         run.assert_not_called()

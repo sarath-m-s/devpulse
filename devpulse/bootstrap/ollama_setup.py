@@ -14,7 +14,7 @@ import httpx
 from rich.console import Console
 
 # Keep in sync with defaults in devpulse.config and OllamaProvider / embed_ollama
-DEFAULT_LLM_MODEL = "llama3.1"
+DEFAULT_LLM_MODEL = "llama3.2:3b"
 DEFAULT_EMBED_MODEL = "nomic-embed-text"
 
 _STARTUP_TIMEOUT_SEC = 45
@@ -40,6 +40,13 @@ def is_server_reachable(host: str) -> bool:
         return False
 
 
+def _ollama_compare_key(name: str) -> str:
+    """Normalize Ollama model names for equality (handles :latest suffix)."""
+    if name.endswith(":latest"):
+        return name[: -len(":latest")]
+    return name
+
+
 def _parse_installed_models(tags_json: dict[str, Any]) -> set[str]:
     names: set[str] = set()
     for m in tags_json.get("models") or []:
@@ -47,16 +54,16 @@ def _parse_installed_models(tags_json: dict[str, Any]) -> set[str]:
         if not name:
             continue
         names.add(name)
-        base = name.split(":", 1)[0]
-        names.add(base)
+        names.add(_ollama_compare_key(name))
     return names
 
 
 def _model_present(installed: set[str], want: str) -> bool:
-    if want in installed:
+    want_key = _ollama_compare_key(want)
+    if want in installed or want_key in installed:
         return True
     for n in installed:
-        if n.split(":", 1)[0] == want:
+        if _ollama_compare_key(n) == want_key:
             return True
     return False
 

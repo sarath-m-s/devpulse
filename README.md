@@ -361,7 +361,7 @@ DevPulse works fully without an LLM — time tracking, toil detection, dashboard
 
 | Provider   | Model                    | Cost        | Privacy | Setup                                     |
 | ---------- | ------------------------ | ----------- | ------- | ----------------------------------------- |
-| **Ollama** | llama3.1 (local)         | Free        | Local   | `devpulse config set llm.provider ollama` |
+| **Ollama** | llama3.2:3b (local)      | Free        | Local   | `devpulse config set llm.provider ollama` |
 | **Groq**   | llama-3.1-70b            | Free tier   | Cloud   | `devpulse config set llm.provider groq`   |
 | **Claude** | claude-sonnet-4-20250514 | ~$0.008/req | Cloud   | `devpulse config set llm.provider claude` |
 | **OpenAI** | gpt-4o-mini              | ~$0.004/req | Cloud   | `devpulse config set llm.provider openai` |
@@ -372,7 +372,7 @@ DevPulse works fully without an LLM — time tracking, toil detection, dashboard
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.1
+ollama pull llama3.2:3b
 devpulse config set llm.provider ollama
 ```
 
@@ -424,7 +424,7 @@ provider = "ollama"             # "ollama", "groq", "claude", "openai", "none"
 
 [llm.ollama]
 host = "http://localhost:11434"
-model = "llama3.1"
+model = "llama3.2:3b"
 
 [llm.groq]
 api_key = ""                    # or GROQ_API_KEY env var

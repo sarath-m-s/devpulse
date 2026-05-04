@@ -41,7 +41,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         },
         "ollama": {
             "host": "http://localhost:11434",
-            "model": "llama3.1",
+            "model": "llama3.2:3b",
         },
         "groq": {
             "api_key": "",
