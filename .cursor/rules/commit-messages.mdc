@@ -1,0 +1,43 @@
+---
+description: Use a structured format for commit messages (Conventional Commits)
+alwaysApply: true
+---
+
+# Commit messages
+
+When drafting or suggesting a commit message, follow **Conventional Commits** with a clear subject and optional body.
+
+## Subject line (required)
+
+- One line, imperative mood: *Add*, *Fix*, *Refactor*, not *Added* / *Fixes*.
+- Pattern: `type(scope): short description`
+- **type** (pick one): `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`
+- **scope** (optional): area or module, e.g. `tui`, `cli`, `deps` — omit if unclear.
+- Keep the subject around **50 characters**; avoid trailing period.
+- Max ~**72 characters** for the full subject line if scope is long.
+
+Examples:
+
+```
+feat(tui): add week overview heatmap navigation
+
+fix(cli): handle missing config path gracefully
+
+refactor(data): extract session aggregation helpers
+```
+
+## Body (optional, use when the change needs context)
+
+- Leave **one blank line** after the subject.
+- Explain **what** changed and **why** (not how line-by-line), in short lines (~72 chars).
+- Use bullets for multiple points.
+
+## Footer (optional)
+
+- `BREAKING CHANGE: description` for incompatible API or behavior changes.
+- Issue references: `Fixes #123`, `Refs #456`.
+
+## What to avoid
+
+- Vague subjects: *update stuff*, *fixes*, *wip*
+- Mixing unrelated changes in one commit message (message should match the single logical change)

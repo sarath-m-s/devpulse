@@ -1527,5 +1527,20 @@ def web(
     run(port=port)
 
 
+@app.command()
+def tui() -> None:
+    """Launch the interactive k9s-inspired terminal UI."""
+    db.init_db()
+    try:
+        from devpulse.ui.tui import DevPulseTUI
+    except ImportError as exc:
+        console.print(
+            f"[red]TUI requires the `textual` package: {exc}[/red]\n"
+            "[dim]Install with: pip install 'textual>=0.79'[/dim]"
+        )
+        raise typer.Exit(code=1)
+    DevPulseTUI().run()
+
+
 if __name__ == "__main__":
     app()
