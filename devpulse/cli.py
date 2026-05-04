@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -35,6 +36,20 @@ console = Console()
 err_console = Console(stderr=True)
 
 
+def _print_optional_tool_hints() -> None:
+    """Warn when common external tools are missing (non-fatal)."""
+    if not shutil.which("git"):
+        console.print(
+            "[yellow]⚠[/yellow]  [bold]git[/bold] not found on PATH — "
+            "repo discovery, the git collector, and git backfill need Git installed."
+        )
+    if sys.platform.startswith("linux") and not shutil.which("xdotool"):
+        console.print(
+            "[dim]Linux: install [bold]xdotool[/bold] if you enable the window tracker "
+            "(collectors.window_tracker).[/dim]"
+        )
+
+
 def _get_cfg() -> dict:
     return load_config()
 
@@ -55,7 +70,7 @@ def init(
         help="Do not install Ollama or pull models (also: DEVPULSE_SKIP_OLLAMA=1)",
     ),
 ) -> None:
-    """Initialize DevPulse: create config, detect projects, show hook instructions."""
+    """Initialize DevPulse: config, DB, optional tool checks, Ollama bootstrap, hook instructions."""
     DEVPULSE_DIR.mkdir(parents=True, exist_ok=True)
     cfg = ensure_default_config()
 
@@ -91,6 +106,8 @@ def init(
     db.init_db()
     console.print("[green]✓[/green] Database initialized")
     console.print(f"[green]✓[/green] Config at {DEVPULSE_DIR / 'config.toml'}")
+
+    _print_optional_tool_hints()
 
     from devpulse.bootstrap import run_ollama_bootstrap
 

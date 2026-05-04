@@ -8,24 +8,23 @@ version = "3.1.0"
 description = "A privacy-first CLI developer productivity copilot with intelligence layer"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "DevPulse Contributors" }]
 keywords = ["developer", "productivity", "cli", "analytics"]
-
-[project.urls]
-Homepage = "https://github.com/sarath-m-s/devpulse"
-Repository = "https://github.com/sarath-m-s/devpulse"
-Issues = "https://github.com/sarath-m-s/devpulse/issues"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development",
 ]
-
 dependencies = [
     "typer[all]>=0.12",
     "rich>=13.7",
@@ -35,6 +34,11 @@ dependencies = [
     "tomli-w>=1.0",
     "httpx>=0.27",
 ]
+
+[project.urls]
+Homepage = "https://github.com/sarath-m-s/devpulse"
+Repository = "https://github.com/sarath-m-s/devpulse"
+Issues = "https://github.com/sarath-m-s/devpulse/issues"
 
 [project.optional-dependencies]
 claude = ["anthropic>=0.40"]
@@ -61,6 +65,9 @@ devpulse = "devpulse.cli:app"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["devpulse*"]
+
+[tool.setuptools.package-data]
+devpulse = ["web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

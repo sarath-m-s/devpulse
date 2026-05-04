@@ -6,7 +6,7 @@ A privacy-first developer productivity copilot that runs entirely on your machin
 
 
 
-[Installation](#installation) • [Features](#features) • [Web Dashboard](#web-dashboard) • [CLI Reference](#cli-reference) • [Configuration](#configuration) • [Contributing](#contributing)
+[Requirements](#requirements) • [Installation](#installation) • [Features](#features) • [Web Dashboard](#web-dashboard) • [CLI Reference](#cli-reference) • [Configuration](#configuration) • [Contributing](#contributing)
 
 
 
@@ -45,7 +45,24 @@ DevPulse silently observes your workflow — shell commands, git activity, file 
 
 ---
 
+## Requirements
+
+- **Python** 3.10 or newer (3.11+ recommended)
+- **pip** (or another PEP 517 installer) for installing from PyPI
+- **Git** on `PATH` — used for project discovery, the git collector, and history backfill. `devpulse init` warns if it is missing.
+- **Operating system** — macOS and Linux are fully supported for the terminal UI, collectors, and daemon. Native Windows is limited; use **WSL** for the same experience as Linux.
+
+Optional, depending on features:
+
+- **Local LLM (default)** — With `llm.provider = "ollama"` (the default), first-time setup can install [Ollama](https://ollama.com), start it, and pull models. That needs **curl** or **wget** on macOS/Linux, or **winget** on Windows. Skip this with `devpulse init --skip-ollama` or `DEVPULSE_SKIP_OLLAMA=1`.
+- **Linux window focus** — If you enable `collectors.window_tracker`, install **xdotool** (X11). `devpulse init` mentions this on Linux when `xdotool` is not found.
+- **Semantic / local embeddings** — Install optional extras, e.g. `pip install devpulse[rag]`, for heavier ML dependencies when you use local embedding providers.
+
+---
+
 ## Installation
+
+From [PyPI](https://pypi.org/project/devpulse/):
 
 ```bash
 pip install devpulse
@@ -55,9 +72,18 @@ devpulse init --path ~/your-projects
 Or install directly from GitHub:
 
 ```bash
-pip install git+https://github.com/sarathms/devpulse.git
+pip install git+https://github.com/sarath-m-s/devpulse.git
 devpulse init --path ~/your-projects
 ```
+
+### What `devpulse init` does
+
+1. Creates `~/.devpulse/` and writes `config.toml` if needed.
+2. Registers project paths (`--path` or auto-discovery under common home directories).
+3. Initializes the SQLite database (`~/.devpulse/devpulse.db`).
+4. Prints hints if **git** (and on Linux, **xdotool** for window tracking) is missing.
+5. If the LLM provider is **ollama** and the host is local, attempts to install Ollama, start the server, and pull default models — unless you pass **`--skip-ollama`** or set **`DEVPULSE_SKIP_OLLAMA=1`**.
+6. Shows shell-hook instructions and reminds you to run **`devpulse start`**.
 
 The `--path` flag tells DevPulse where your git repos live. It can be a **parent directory containing multiple repos** (e.g. `~/work`, `~/upskill`) or a single repo. DevPulse automatically discovers all individual repos one level deep inside each folder. You can pass it multiple times:
 
@@ -298,7 +324,7 @@ Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
 
 | Command                               | Description                                                                                                         |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `devpulse init [--path DIR]`          | First-time setup: creates config, detects projects, initializes DB. Pass `--path` to specify where your repos live. |
+| `devpulse init [--path DIR] [--skip-ollama]` | First-time setup: config, project paths, DB, optional tool hints, and (for local Ollama) install/pull models unless skipped. |
 | `devpulse start`                      | Start the background collector daemon                                                                               |
 | `devpulse stop`                       | Stop the daemon                                                                                                     |
 | `devpulse status`                     | Show daemon state, commands today, most active project                                                              |
@@ -480,8 +506,8 @@ profile_days = 30                      # days of data to analyze
 DevPulse is designed to be privacy-first:
 
 - **All data stays local** — stored in `~/.devpulse/devpulse.db` (SQLite with WAL mode)
-- **No telemetry** — zero network calls by the core tool
-- **LLM is opt-in** — all analysis works without it; only `suggest` and `insights` use LLM
+- **No telemetry** — the core app does not phone home; optional features may use the network (cloud LLM APIs, or downloading Ollama/models during `devpulse init` when using local Ollama)
+- **LLM is optional** — time tracking, dashboards, and most features work offline; `suggest`, `insights`, and some summaries need a configured provider
 - **You choose the provider** — use Ollama for 100% local inference
 - **Data retention** — old events auto-deleted after 90 days (configurable)
 - **Full data ownership** — export or delete everything at any time with `devpulse export` / `devpulse reset`
@@ -532,14 +558,15 @@ devpulse/
 │   ├── script_gen.py    # LLM-powered automation scripts
 │   └── report_gen.py    # LLM-powered insights + daily summaries
 ├── llm/
-│   ├── base.py          # Provider interface
-│   ├── factory.py       # Auto-detection + instantiation
-│   ├── ollama.py        # Ollama (local)
-│   ├── groq.py          # Groq (cloud, free tier)
-│   ├── claude.py        # Claude (cloud)
-│   └── openai.py        # OpenAI (cloud)
+│   ├── base.py             # Provider interface
+│   ├── factory.py          # Auto-detection + instantiation
+│   ├── ollama_provider.py  # Ollama (local)
+│   ├── groq_provider.py    # Groq (cloud, free tier)
+│   ├── claude_provider.py  # Claude (cloud)
+│   └── openai_provider.py  # OpenAI (cloud)
 ├── ui/
-│   └── dashboard.py     # Rich terminal dashboards
+│   ├── dashboard.py     # Rich terminal dashboards
+│   └── tui/             # Textual TUI screens
 └── web/
     ├── server.py        # Stdlib HTTP server + API
     └── static/
@@ -551,11 +578,13 @@ devpulse/
 ## Development
 
 ```bash
-git clone https://github.com/sarathms/devpulse.git
+git clone https://github.com/sarath-m-s/devpulse.git
 cd devpulse
 pip install -e ".[all,dev]"
 make test
 ```
+
+Build release artifacts (sdist + wheel) with `python -m build` from the repo root; upload to PyPI with `twine upload dist/*` after configuring [PyPI trusted publishing](https://docs.pypi.org/trusted-publishers/) or API tokens.
 
 ### Makefile targets
 
