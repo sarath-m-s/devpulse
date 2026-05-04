@@ -40,6 +40,24 @@ def fmt_dur(minutes: float | int | None) -> str:
     return f"{h}h {m:02d}m" if h else f"{m}m"
 
 
+# Projects to exclude from all views — unidentified activity in home dir,
+# browser, Slack, etc. should not pollute project-level analytics.
+_SKIP_PROJECTS: frozenset[str] = frozenset({"unknown", "Unknown", ""})
+
+
+def _is_known_project(name: str | None) -> bool:
+    return bool(name) and name not in _SKIP_PROJECTS
+
+
+def _filter_transitions(transitions: list[dict]) -> list[dict]:
+    """Keep only project-to-project transitions (no unknown on either side)."""
+    return [
+        t for t in transitions
+        if _is_known_project(t.get("from_project"))
+        and _is_known_project(t.get("to_project"))
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Today snapshot
 # ---------------------------------------------------------------------------
@@ -49,8 +67,9 @@ def fetch_today() -> dict[str, Any]:
     time_data = time_tracker.compute_time_per_project(since=since)
     ctx = context_switch.compute_context_switches(since=since)
 
-    total_minutes = sum(p["total_minutes"] for p in time_data.values())
-    total_commits = sum(p["commits"] for p in time_data.values())
+    known_time = {k: v for k, v in time_data.items() if _is_known_project(k)}
+    total_minutes = sum(p["total_minutes"] for p in known_time.values())
+    total_commits = sum(p["commits"] for p in known_time.values())
     total_cmds = db.count_events_today()
     focus_score = max(0, 100 - int(ctx["fragmentation_score"]))
 
@@ -67,7 +86,7 @@ def fetch_today() -> dict[str, Any]:
 
     projects = []
     for proj, stats in sorted(
-        time_data.items(), key=lambda x: x[1]["total_minutes"], reverse=True
+        known_time.items(), key=lambda x: x[1]["total_minutes"], reverse=True
     )[:8]:
         projects.append({
             "name": proj,
@@ -101,12 +120,13 @@ def fetch_week() -> dict[str, Any]:
     time_data = time_tracker.compute_time_per_project(since=since)
     ctx = context_switch.compute_context_switches(since=since)
 
-    total_minutes = sum(p["total_minutes"] for p in time_data.values())
-    total_commits = sum(p["commits"] for p in time_data.values())
+    known_time = {k: v for k, v in time_data.items() if _is_known_project(k)}
+    total_minutes = sum(p["total_minutes"] for p in known_time.values())
+    total_commits = sum(p["commits"] for p in known_time.values())
 
     projects = []
     for proj, stats in sorted(
-        time_data.items(), key=lambda x: x[1]["total_minutes"], reverse=True
+        known_time.items(), key=lambda x: x[1]["total_minutes"], reverse=True
     )[:10]:
         projects.append({
             "name": proj,
@@ -164,7 +184,7 @@ def fetch_week() -> dict[str, Any]:
         "avg_focus_block": avg_block,
         "daily": daily,
         "best_day": best_day,
-        "top_transitions": ctx.get("top_transitions", [])[:5],
+        "top_transitions": _filter_transitions(ctx.get("top_transitions", []))[:5],
     }
 
 
@@ -177,8 +197,13 @@ def fetch_projects() -> list[dict[str, Any]]:
     month_data = time_tracker.compute_time_per_project(since=month_start())
     today_data = time_tracker.compute_time_per_project(since=today_start())
 
-    all_projects = set(week_data.keys()) | set(month_data.keys())
-    total_week = max(sum(p["total_minutes"] for p in week_data.values()), 1)
+    all_projects = {
+        p for p in (set(week_data.keys()) | set(month_data.keys()))
+        if _is_known_project(p)
+    }
+    total_week = max(
+        sum(v["total_minutes"] for k, v in week_data.items() if _is_known_project(k)), 1
+    )
 
     result = []
     for proj in sorted(
@@ -210,7 +235,9 @@ def fetch_branches() -> list[dict[str, Any]]:
     for e in commit_events:
         data = e.get("data") or {}
         branch = data.get("branch", "main")
-        proj = e.get("project") or "unknown"
+        proj = e.get("project") or ""
+        if not _is_known_project(proj):
+            continue
         key = f"{proj}/{branch}"
         if key not in branch_stats:
             branch_stats[key] = {
@@ -223,7 +250,9 @@ def fetch_branches() -> list[dict[str, Any]]:
     for e in switch_events:
         data = e.get("data") or {}
         branch = data.get("to_branch", "")
-        proj = e.get("project") or "unknown"
+        proj = e.get("project") or ""
+        if not _is_known_project(proj):
+            continue
         key = f"{proj}/{branch}"
         if key not in branch_stats:
             branch_stats[key] = {
@@ -333,14 +362,14 @@ def fetch_focus() -> dict[str, Any]:
             "fragmentation_score": today["fragmentation_score"],
             "focus_score": max(0, 100 - int(today["fragmentation_score"])),
             "deep_work_blocks": today.get("deep_work_blocks", []),
-            "top_transitions": today.get("top_transitions", [])[:5],
+            "top_transitions": _filter_transitions(today.get("top_transitions", []))[:5],
         },
         "week": {
             "switches": week["switches"],
             "switches_per_day": week.get("switches_per_day", 0),
             "fragmentation_score": week["fragmentation_score"],
             "focus_score": max(0, 100 - int(week["fragmentation_score"])),
-            "top_transitions": week.get("top_transitions", [])[:5],
+            "top_transitions": _filter_transitions(week.get("top_transitions", []))[:5],
             "avg_focus_block": avg_block,
             "best_day": best_day_sw["day"] if best_day_sw else "-",
             "worst_day": worst_day_sw["day"] if worst_day_sw else "-",
@@ -569,19 +598,62 @@ def ask_llm(question: str) -> str:
         return f"LLM error: {exc}"
 
 
-def generate_toil_script(pattern_id: int) -> str:
-    """Generate an automation script for a toil pattern. Synchronous — call from worker."""
+def generate_toil_script(pattern_id: int) -> dict[str, Any]:
+    """Generate an automation script for a toil pattern. Returns dict with raw/code/name.
+
+    Synchronous — call from a worker thread.
+    """
+    import re
     pattern = get_toil_pattern_by_id(pattern_id)
     if not pattern:
-        return f"Pattern {pattern_id} not found."
+        return {"error": f"Pattern {pattern_id} not found."}
     provider, _ = get_llm_provider()
     if not provider.is_available():
-        return "No LLM provider configured. Configure one in the Config screen."
+        return {"error": "No LLM provider configured. Go to Config screen (8) to set one."}
     try:
         from devpulse.generators.script_gen import generate_script
-        return generate_script(pattern, provider)
+        raw = generate_script(pattern, provider)
     except Exception as exc:
-        return f"Error generating script: {exc}"
+        return {"error": f"LLM error: {exc}"}
+
+    # Strip markdown fences if present
+    m = re.search(r"```(?:bash|sh|shell)?\s*\n(.*?)```", raw, re.DOTALL)
+    code = m.group(1).strip() if m else raw.strip()
+
+    # Extract alias name (first word after 'alias ')
+    name_m = re.search(r"alias\s+([\w\-]+)\s*=", code)
+    name = name_m.group(1) if name_m else None
+
+    return {
+        "raw": raw,
+        "code": code,
+        "name": name,
+        "pattern_id": pattern_id,
+        "pattern_label": pattern.get("label", ""),
+    }
+
+
+def save_toil_script(code: str, destination: str, pattern_id: int | None = None) -> str:
+    """Save a generated toil script. destination: 'zshrc' | 'aliases' | 'scripts'.
+
+    Returns a human-readable result message.
+    Synchronous — call from a worker thread.
+    """
+    try:
+        from devpulse.generators.script_gen import save_script
+        path = save_script(code, destination=destination)
+        if pattern_id is not None:
+            try:
+                db.update_toil_automation(pattern_id, code)
+            except Exception:
+                pass
+        if destination == "zshrc":
+            return f"✓ Appended to ~/.zshrc — run: source ~/.zshrc"
+        if destination == "aliases":
+            return f"✓ Appended to ~/.aliases — run: source ~/.aliases"
+        return f"✓ Saved to {path}"
+    except Exception as exc:
+        return f"Error saving: {exc}"
 
 
 # ---------------------------------------------------------------------------

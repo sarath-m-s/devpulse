@@ -1,9 +1,4 @@
-"""DevPulse TUI — k9s-inspired interactive terminal dashboard.
-
-Launched via `devpulse tui`. Provides 8 navigable screens covering every
-DevPulse feature (Today, Week, Projects, Toil, Focus, Insights, Profile,
-Config) with vim-style keybindings and live data refresh.
-"""
+"""DevPulse TUI — k9s-inspired interactive terminal dashboard."""
 
 from __future__ import annotations
 
@@ -19,26 +14,19 @@ from devpulse.ui.tui import data as tui_data
 
 
 _TAB_ORDER = [
-    ("today",    "Today"),
-    ("week",     "Week"),
-    ("projects", "Projects"),
-    ("toil",     "Toil"),
-    ("focus",    "Focus"),
-    ("insights", "Insights"),
-    ("profile",  "Profile"),
-    ("config",   "Config"),
+    ("today",    "Today",    "Today's Pulse"),
+    ("week",     "Week",     "This Week"),
+    ("projects", "Projects", "Projects"),
+    ("toil",     "Toil",     "Toil Detector"),
+    ("focus",    "Focus",    "Focus Analysis"),
+    ("insights", "Insights", "AI Insights"),
+    ("profile",  "Profile",  "Developer Profile"),
+    ("config",   "Config",   "Configuration"),
 ]
 
-_VIEW_TITLES = {
-    "today":    "Today's Pulse",
-    "week":     "This Week",
-    "projects": "Projects",
-    "toil":     "Toil Detector",
-    "focus":    "Focus Analysis",
-    "insights": "AI Insights",
-    "profile":  "Developer Profile",
-    "config":   "Configuration",
-}
+# id → (short_label, full_title)
+_TAB_META = {tid: (lbl, title) for tid, lbl, title in _TAB_ORDER}
+_TAB_IDS  = [tid for tid, _, _ in _TAB_ORDER]
 
 
 class HeaderBar(Static):
@@ -64,23 +52,28 @@ class TabBar(Horizontal):
         height: 1;
         background: #0d0e11;
         padding: 0 0;
-        border-bottom: tall #23252a;
     }
     TabBar > .tab {
-        padding: 0 2;
+        padding: 0 1;
         color: #62666d;
         height: 1;
+        min-width: 10;
     }
     TabBar > .tab.active {
         background: #5e6ad2;
-        color: #f7f8f8;
+        color: #ffffff;
         text-style: bold;
+    }
+    TabBar > .tab-sep {
+        color: #23252a;
+        width: 1;
+        height: 1;
     }
     """
 
 
 class KeyBar(Static):
-    """Bottom key-hint bar."""
+    """Bottom key-hint bar — shows current view + all keybindings."""
 
     DEFAULT_CSS = """
     KeyBar {
@@ -92,18 +85,23 @@ class KeyBar(Static):
     }
     """
 
-    _HINT = (
-        "[dim #5e6ad2][1-8][/] view  "
-        "[dim #5e6ad2][tab][/] next  "
-        "[dim #5e6ad2][r][/] refresh  "
-        "[dim #5e6ad2][j/k][/] scroll  "
-        "[dim #5e6ad2][q][/] quit  "
-        "[dim #5e6ad2][?][/] help  "
-        "[dim #5e6ad2][enter][/] action"
-    )
-
     def __init__(self, **kwargs) -> None:
-        super().__init__(self._HINT, **kwargs)
+        super().__init__("", **kwargs)
+
+    def render_hint(self, tab_num: int, tab_title: str) -> str:
+        return (
+            f"[bold #5e6ad2]#{tab_num}[/] [#8a8f98]{tab_title}[/]  "
+            f"[dim #23252a]│[/]  "
+            f"[#5e6ad2]1-8[/#5e6ad2] screens  "
+            f"[#5e6ad2]tab[/#5e6ad2] next  "
+            f"[#5e6ad2]r[/#5e6ad2] refresh  "
+            f"[#5e6ad2]j/k[/#5e6ad2] scroll  "
+            f"[#5e6ad2]q[/#5e6ad2] quit  "
+            f"[#5e6ad2]?[/#5e6ad2] help"
+        )
+
+    def set_view(self, tab_num: int, tab_title: str) -> None:
+        self.update(self.render_hint(tab_num, tab_title))
 
 
 class DevPulseTUI(App):
@@ -177,7 +175,7 @@ class DevPulseTUI(App):
                 "profile":  ProfileScreen,
                 "config":   ConfigScreen,
             }
-            for tab_id, _ in _TAB_ORDER:
+            for tab_id, _, _ in _TAB_ORDER:
                 screen = screen_classes[tab_id](id=tab_id)
                 self._screens[tab_id] = screen
                 yield screen
@@ -188,10 +186,14 @@ class DevPulseTUI(App):
         db.init_db()
 
         tab_bar = self.query_one("#tab-bar", TabBar)
-        for i, (tab_id, label) in enumerate(_TAB_ORDER, 1):
-            classes = "tab active" if tab_id == self._current_tab else "tab"
-            tab_bar.mount(Static(f"[{i}]{label}", classes=classes, id=f"tab-{tab_id}"))
+        for i, (tab_id, label, _) in enumerate(_TAB_ORDER, 1):
+            is_active = tab_id == self._current_tab
+            classes = "tab active" if is_active else "tab"
+            tab_bar.mount(Static(f" {i} {label} ", classes=classes, id=f"tab-{tab_id}"))
+            if i < len(_TAB_ORDER):
+                tab_bar.mount(Static("│", classes="tab-sep"))
 
+        self._update_key_bar()
         self.set_interval(1.0, self._update_header)
         self.set_interval(30.0, self.action_refresh)
 
@@ -207,7 +209,12 @@ class DevPulseTUI(App):
     # ── Header ───────────────────────────────────────────────────────
 
     def _render_header(self) -> str:
-        view_title = _VIEW_TITLES.get(self._current_tab, self._current_tab.title())
+        meta = _TAB_META.get(self._current_tab)
+        if meta:
+            tab_label, view_title = meta
+        else:
+            tab_label, view_title = "?", self._current_tab.title()
+
         try:
             st = tui_data.fetch_status()
             running = st.get("daemon_running", False)
@@ -230,28 +237,38 @@ class DevPulseTUI(App):
         except Exception:
             pass
 
+    def _update_key_bar(self) -> None:
+        try:
+            tab_num = _TAB_IDS.index(self._current_tab) + 1
+        except ValueError:
+            tab_num = 1
+        meta = _TAB_META.get(self._current_tab)
+        tab_title = meta[1] if meta else self._current_tab.title()
+        try:
+            self.query_one("#key-bar", KeyBar).set_view(tab_num, tab_title)
+        except Exception:
+            pass
+
     # ── Tab switching ────────────────────────────────────────────────
 
     def action_switch_tab(self, tab_id: str) -> None:
-        if tab_id not in {t for t, _ in _TAB_ORDER}:
+        if tab_id not in set(_TAB_IDS):
             return
         self._set_active_tab(tab_id)
 
     def action_next_tab(self) -> None:
-        ids = [t for t, _ in _TAB_ORDER]
         try:
-            idx = ids.index(self._current_tab)
+            idx = _TAB_IDS.index(self._current_tab)
         except ValueError:
             idx = 0
-        self._set_active_tab(ids[(idx + 1) % len(ids)])
+        self._set_active_tab(_TAB_IDS[(idx + 1) % len(_TAB_IDS)])
 
     def action_prev_tab(self) -> None:
-        ids = [t for t, _ in _TAB_ORDER]
         try:
-            idx = ids.index(self._current_tab)
+            idx = _TAB_IDS.index(self._current_tab)
         except ValueError:
             idx = 0
-        self._set_active_tab(ids[(idx - 1) % len(ids)])
+        self._set_active_tab(_TAB_IDS[(idx - 1) % len(_TAB_IDS)])
 
     def _set_active_tab(self, tab_id: str) -> None:
         self._current_tab = tab_id
@@ -261,12 +278,13 @@ class DevPulseTUI(App):
             pass
         try:
             tab_bar = self.query_one("#tab-bar", TabBar)
-            for tid, _ in _TAB_ORDER:
+            for tid, _, _ in _TAB_ORDER:
                 w = tab_bar.query_one(f"#tab-{tid}", Static)
                 w.set_classes("tab active" if tid == tab_id else "tab")
         except Exception:
             pass
         self._update_header()
+        self._update_key_bar()
         self.call_later(self._refresh_current_screen)
         self.call_later(self._focus_active_tab)
 
@@ -285,8 +303,11 @@ class DevPulseTUI(App):
         self._update_header()
 
     def action_help(self) -> None:
-        self.notify(
-            "Keys: [1-8] switch view  [tab/shift+tab] cycle  [j/k] scroll  "
-            "[r] refresh  [enter/a] action  [s] save  [R] re-run  [q] quit",
-            timeout=7,
-        )
+        lines = [
+            "1 Today  2 Week  3 Projects  4 Toil  5 Focus  6 AI  7 Profile  8 Config",
+            "tab / shift+tab  cycle screens",
+            "j / k  scroll up/down    r  refresh    q  quit",
+            "Toil: Enter / a  generate alias    s/z/a  save alias",
+            "Insights: i  ask question    R  re-run",
+        ]
+        self.notify("\n".join(lines), timeout=8)

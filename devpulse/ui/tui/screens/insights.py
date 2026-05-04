@@ -22,7 +22,7 @@ _QUICK_QUERIES = [
 
 
 class InsightsScreen(VimVerticalScroll):
-    """AI Insights view."""
+    """AI Insights view. LLM insights load once per session to avoid repeated API calls."""
 
     DEFAULT_CSS = """
     InsightsScreen {
@@ -61,6 +61,10 @@ class InsightsScreen(VimVerticalScroll):
         Binding("i", "focus_input",    "Ask"),
         Binding("R", "rerun_insights", "Re-run"),
     ]
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._insights_loaded: bool = False  # only call LLM once per session
 
     def compose(self) -> ComposeResult:
         yield Static("", id="ins-title")
@@ -125,12 +129,17 @@ class InsightsScreen(VimVerticalScroll):
                 "[dim]Configure one in the Config screen (8) or run "
                 "`devpulse config set llm.provider ollama`[/dim]"
             )
+            self._insights_loaded = False  # allow retry once provider is configured
             return
 
-        self.query_one("#ins-list", Static).update("[dim]⏳ Loading insights from LLM…[/dim]")
-        self._load_insights()
+        # Only call the LLM on the first visit — press R to re-run manually
+        if not self._insights_loaded:
+            self.query_one("#ins-list", Static).update("[dim]⏳ Loading insights from LLM…[/dim]")
+            self._load_insights()
+        # else: keep the existing rendered insights and do nothing
 
     def action_rerun_insights(self) -> None:
+        self._insights_loaded = False
         self.query_one("#ins-list", Static).update("[dim]⏳ Regenerating insights…[/dim]")
         self._load_insights()
 
@@ -156,6 +165,7 @@ class InsightsScreen(VimVerticalScroll):
             cleaned = line.lstrip("0123456789.- *)").strip()
             out.append(f"  [{color}]●[/{color}] {cleaned}")
         list_widget.update("\n".join(out))
+        self._insights_loaded = True  # don't re-run until user presses R
 
     # ── Input / button handling ──────────────────────────────────────
 
