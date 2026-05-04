@@ -95,6 +95,13 @@ class DevPulseHandler(BaseHTTPRequestHandler):
                 self._api_insights_get()
             elif path == "/api/branches":
                 self._api_branches()
+            elif path == "/api/fix/status":
+                self._api_fix_status()
+            elif path == "/api/fix/history":
+                qs = parse_qs(parsed.query)
+                limit = int(qs.get("limit", ["50"])[0])
+                project = (qs.get("project", [""])[0] or None)
+                self._api_fix_history(limit, project)
             elif path.startswith("/api/"):
                 self._send(404, _json({"error": "not found"}))
             else:
@@ -122,6 +129,8 @@ class DevPulseHandler(BaseHTTPRequestHandler):
                 self._api_daemon_restart()
             elif path == "/api/daemon/stop":
                 self._api_daemon_stop()
+            elif path == "/api/fix/suggest":
+                self._api_fix_suggest(payload)
             else:
                 self._send(404, _json({"error": "not found"}))
         except Exception as exc:
@@ -481,7 +490,9 @@ class DevPulseHandler(BaseHTTPRequestHandler):
 
         cfg = load_config()
         for key, value in payload.items():
-            set_config_value(cfg, key, value)
+            if isinstance(value, bool):
+                value = "true" if value else "false"
+            set_config_value(cfg, key, str(value))
         save_config(cfg)
         self._send(200, _json({"ok": True}))
 
@@ -594,6 +605,99 @@ class DevPulseHandler(BaseHTTPRequestHandler):
                 item["when"] = ""
 
         self._send(200, _json(result))
+
+    # ── Fix knowledge base (RAG) ────────────────────────────────────
+
+    def _api_fix_status(self) -> None:
+        from devpulse import db
+        from devpulse.config import load_config
+        from devpulse.rag.embed_factory import get_embedding_provider
+        from devpulse.rag.fix_tracker import expire_stale_windows, get_open_windows
+
+        expired = expire_stale_windows()
+        open_wins = get_open_windows()
+        stats = db.get_fix_stats()
+        cfg = load_config()
+        embed = get_embedding_provider(cfg)
+        avail = embed.is_available()
+
+        windows_out: list[dict] = []
+        for w in open_wins:
+            em_row = db.get_error_memory_by_hash(w.get("error_hash") or "")
+            pattern = ((em_row.get("error_pattern") if em_row else None) or "?")[:240]
+            cmds = w.get("commands_after") or []
+            windows_out.append({
+                "id": w["id"],
+                "pattern": pattern,
+                "project": w.get("project"),
+                "started_at": w.get("started_at"),
+                "commands_after": cmds,
+                "commands_count": len(cmds),
+            })
+
+        self._send(200, _json({
+            "embedding_provider": embed.name,
+            "embedding_available": avail,
+            "embedding_dimension": embed.dimension if avail else None,
+            "rag_enabled": cfg.get("rag", {}).get("enabled", True),
+            "auto_track_fixes": cfg.get("rag", {}).get("auto_track_fixes", True),
+            **stats,
+            "expired_stale": expired,
+            "open_windows": windows_out,
+        }))
+
+    def _api_fix_history(self, limit: int, project: str | None) -> None:
+        from devpulse import db
+
+        rows = db.get_fix_records(project=project, limit=min(limit, 200))
+        out = []
+        for r in rows:
+            out.append({
+                "id": r.get("id"),
+                "error_pattern": r.get("error_pattern"),
+                "fix_summary": r.get("fix_summary"),
+                "fix_commands": r.get("fix_commands") or [],
+                "project": r.get("project"),
+                "source": r.get("source"),
+                "occurrences": r.get("occurrences"),
+                "created_at": r.get("created_at"),
+            })
+        self._send(200, _json({"records": out}))
+
+    def _api_fix_suggest(self, payload: dict) -> None:
+        from devpulse.config import load_config
+        from devpulse.rag.embed_factory import get_embedding_provider
+        from devpulse.rag.retriever import FixRetriever
+
+        command = (payload.get("command") or "").strip()
+        if not command:
+            self._send(400, _json({"error": "command is required"}))
+            return
+
+        exit_code = int(payload.get("exit_code", 1))
+        project = payload.get("project")
+        if project is not None and isinstance(project, str) and not project.strip():
+            project = None
+        top_k = int(payload.get("top_k", 5))
+        top_k = max(1, min(top_k, 15))
+
+        cfg = load_config()
+        rag_cfg = cfg.get("rag", {})
+        embed = get_embedding_provider(cfg)
+        retriever = FixRetriever(
+            embedding_provider=embed,
+            fuzzy_threshold=rag_cfg.get("fuzzy_threshold", 0.25),
+            semantic_threshold=rag_cfg.get("semantic_threshold", 0.60),
+        )
+        raw = retriever.suggest(
+            command,
+            exit_code=exit_code,
+            project=project,
+            top_k=top_k,
+        )
+        suggestions = [{k: v for k, v in s.items() if not str(k).startswith("_")} for s in raw]
+
+        self._send(200, _json({"suggestions": suggestions}))
 
     # ── Daemon control ───────────────────────────────────────────────
 

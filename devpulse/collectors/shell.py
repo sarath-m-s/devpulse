@@ -2,13 +2,91 @@
 
 from __future__ import annotations
 
+import json
 import re
+import shlex
 import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from devpulse import db
+
+# Successful runs of these `devpulse <sub>` commands should NOT auto-close a fix
+# window — they are lookups / dashboards, not the actual repair the user ran.
+_META_SKIP_FIX_CLOSE: frozenset[str] = frozenset({
+    "fix-suggest",
+    "fix-status",
+    "fix-history",
+    "fix-records",
+    "web",
+    "config",
+    "shell-hook",
+    "log-cmd",
+    "tui",
+    "daemon",
+    "bootstrap",
+    "doctor",
+    "help",
+    "version",
+})
+
+
+def _parse_devpulse_cli_subcommand(parts: list[str]) -> str | None:
+    """If argv looks like invoking devpulse, return the first subcommand."""
+    if not parts:
+        return None
+    # python -m devpulse.cli <sub> ...
+    if (
+        len(parts) >= 4
+        and parts[0] in ("python", "python3")
+        and parts[1] == "-m"
+        and parts[2] in ("devpulse.cli", "devpulse")
+    ):
+        return parts[3]
+    # uv run devpulse <sub>
+    if len(parts) >= 4 and parts[0] == "uv" and parts[1] == "run" and parts[2] == "devpulse":
+        return parts[3]
+    # .../bin/devpulse <sub> or bare devpulse <sub>
+    for i, p in enumerate(parts):
+        if Path(p).name == "devpulse" and i + 1 < len(parts):
+            return parts[i + 1]
+    return None
+
+
+def success_is_devpulse_meta_only(cmd: str) -> bool:
+    """True if this successful shell line is only DevPulse tooling (not a project fix)."""
+    try:
+        parts = shlex.split(cmd.strip())
+    except ValueError:
+        parts = cmd.split()
+    sub = _parse_devpulse_cli_subcommand(parts)
+    if sub is None:
+        return False
+    base = sub.strip("-").lower()
+    if base in ("h", "help", "v", "version"):
+        return True
+    if base.startswith("-"):
+        return True  # devpulse --help etc.
+    return base in _META_SKIP_FIX_CLOSE
+
+
+def _filter_noise_fix_commands(cmds: list[str]) -> list[str]:
+    """Drop DevPulse introspection commands from stored fix steps."""
+    out: list[str] = []
+    for c in cmds:
+        if success_is_devpulse_meta_only(c):
+            continue
+        out.append(c)
+    return out
+
+
+def _success_resolves_original_failure(success_cmd: str, failed_pattern: str) -> bool:
+    """True when a successful command is a retry of the same workflow as the failure (normalized)."""
+    from devpulse.analyzers.toil import normalize_command
+    if not (failed_pattern or "").strip():
+        return False
+    return normalize_command(success_cmd) == normalize_command(failed_pattern)
 
 
 def _infer_project_from_cwd(cwd: str) -> str | None:
@@ -63,6 +141,7 @@ def log_command(
                         exit_code=exit_code,
                         project=project or "",
                         error_memory_id=error_id if error_id > 0 else None,
+                        workdir=cwd or None,
                     )
         except Exception:
             pass  # never slow down or crash log-cmd
@@ -78,46 +157,72 @@ def log_command(
 
 
 def _maybe_close_fix_windows(success_cmd: str, project: str) -> None:
-    """If there are open fix windows for this project, track this command and
-    attempt to close them now that a success has been observed."""
-    from devpulse.rag.fix_tracker import get_open_windows, track_command, close_fix_window
-    from devpulse.rag.fix_tracker import _WINDOW_EXPIRY_HOURS
-    from datetime import datetime, timedelta
+    """If there are open fix windows for this project, track successes and close
+    only when the success matches a retry of the original failing command (normalized)."""
+    from devpulse.rag.fix_tracker import (
+        get_open_windows,
+        track_command,
+        close_fix_window,
+        capture_workdir_git_diff,
+    )
+
+    if success_is_devpulse_meta_only(success_cmd):
+        return
 
     open_wins = get_open_windows()
     if not open_wins:
         return
     for win in open_wins:
-        # Only handle windows for the same project (or unset project)
         if win.get("project") and project and win["project"] != project:
             continue
+        em_row = db.get_error_memory_by_hash(win.get("error_hash") or "")
+        failed_pat = (em_row.get("error_pattern") or "") if em_row else ""
+        if failed_pat and not _success_resolves_original_failure(success_cmd, failed_pat):
+            track_command(win["id"], success_cmd)
+            continue
         track_command(win["id"], success_cmd)
-        # Heuristic: close the window — the success command is strong signal
-        close_fix_window(win["id"], resolution="auto")
-        # Persist as a fix record
-        _save_fix_record(win, success_cmd)
+        closed = close_fix_window(win["id"], resolution="auto")
+        if closed:
+            _save_fix_record(closed, success_cmd, capture_workdir_git_diff)
 
 
-def _save_fix_record(window: dict, final_cmd: str) -> None:
+def _save_fix_record(
+    window: dict,
+    final_cmd: str,
+    diff_fn: Any = None,
+) -> None:
     """Persist a completed fix window as a fix_record for future RAG retrieval."""
     try:
-        from devpulse.analyzers.error_memory import _error_hash
         from devpulse import db
-        cmds = window.get("commands_after", [])
+        if diff_fn is None:
+            from devpulse.rag.fix_tracker import capture_workdir_git_diff as diff_fn
+        raw_cmds = window.get("commands_after", [])
+        if isinstance(raw_cmds, str):
+            try:
+                cmds = json.loads(raw_cmds) if raw_cmds else []
+            except (json.JSONDecodeError, TypeError):
+                cmds = []
+        else:
+            cmds = list(raw_cmds or [])
         if final_cmd not in cmds:
             cmds = cmds + [final_cmd]
+        cmds = _filter_noise_fix_commands(cmds)
         ehash = window.get("error_hash", "")
         if not ehash:
             return
-        # Look up the original error pattern
         em_row = db.get_error_memory_by_hash(ehash)
         pattern = em_row.get("error_pattern", "") if em_row else ""
         fix_summary = em_row.get("fix_description") if em_row else None
+        workdir = window.get("workdir")
+        fix_diff: str | None = diff_fn(workdir) if workdir else None
+        if not cmds and not fix_summary and not fix_diff:
+            return
         db.upsert_fix_record(
             error_hash=ehash,
             error_pattern=pattern,
             fix_summary=fix_summary,
             fix_commands=cmds,
+            fix_diff=fix_diff,
             project=window.get("project"),
             source="auto",
         )

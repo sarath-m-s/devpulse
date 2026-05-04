@@ -10,7 +10,9 @@ A "fix window" opens when a command fails and closes when:
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from devpulse import db
@@ -22,11 +24,48 @@ from devpulse.analyzers.error_memory import _error_hash
 _WINDOW_EXPIRY_HOURS = 4
 
 
+def capture_workdir_git_diff(workdir: str | None, max_chars: int = 12_000) -> str | None:
+    """Return `git diff HEAD` text for a git worktree, or None if unavailable."""
+    if not workdir:
+        return None
+    root = Path(workdir).expanduser().resolve()
+    if not root.is_dir() or not (root / ".git").exists():
+        return None
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "diff", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if proc.returncode != 0:
+            return None
+        diff = (proc.stdout or "").strip()
+        if not diff:
+            return None
+        if len(diff) > max_chars:
+            diff = diff[:max_chars] + "\n... [truncated]"
+        return diff
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def _fix_window_row_to_dict(row: Any) -> dict[str, Any]:
+    d = dict(row)
+    for key in ("commands_after", "files_changed"):
+        try:
+            d[key] = json.loads(d[key]) if d[key] else []
+        except (json.JSONDecodeError, TypeError):
+            d[key] = []
+    return d
+
+
 def open_fix_window(
     command: str,
     exit_code: int,
     project: str = "",
     error_memory_id: int | None = None,
+    workdir: str | None = None,
 ) -> int:
     """Open a new fix window for a failing command. Returns window id."""
     if exit_code == 0:
@@ -43,9 +82,9 @@ def open_fix_window(
             return existing["id"]
         cur = conn.execute(
             """INSERT INTO fix_windows
-               (error_hash, error_memory_id, project, started_at, status, commands_after, files_changed)
-               VALUES (?,?,?,?,'open','[]','[]')""",
-            (ehash, error_memory_id, project or None, now),
+               (error_hash, error_memory_id, project, started_at, status, commands_after, files_changed, workdir)
+               VALUES (?,?,?,?,'open','[]','[]',?)""",
+            (ehash, error_memory_id, project or None, now, workdir or None),
         )
         return cur.lastrowid  # type: ignore[return-value]
 
@@ -114,7 +153,7 @@ def close_fix_window(
         if not row:
             return None
         if row["status"] != "open":
-            return dict(row)
+            return _fix_window_row_to_dict(row)
 
         started = datetime.strptime(row["started_at"][:19], "%Y-%m-%dT%H:%M:%S")
         duration_ms = int((datetime.now() - started).total_seconds() * 1000)
@@ -128,7 +167,7 @@ def close_fix_window(
         updated = conn.execute(
             "SELECT * FROM fix_windows WHERE id=?", (window_id,)
         ).fetchone()
-        return dict(updated)
+        return _fix_window_row_to_dict(updated)
 
 
 def close_fix_window_by_hash(
@@ -153,16 +192,7 @@ def get_open_windows() -> list[dict[str, Any]]:
         rows = conn.execute(
             "SELECT * FROM fix_windows WHERE status='open' ORDER BY started_at ASC",
         ).fetchall()
-    result = []
-    for row in rows:
-        d = dict(row)
-        for key in ("commands_after", "files_changed"):
-            try:
-                d[key] = json.loads(d[key]) if d[key] else []
-            except (json.JSONDecodeError, TypeError):
-                d[key] = []
-        result.append(d)
-    return result
+    return [_fix_window_row_to_dict(row) for row in rows]
 
 
 def get_fix_windows(
@@ -186,16 +216,7 @@ def get_fix_windows(
             f"SELECT * FROM fix_windows {where} ORDER BY started_at DESC LIMIT ?",
             params,
         ).fetchall()
-    result = []
-    for row in rows:
-        d = dict(row)
-        for key in ("commands_after", "files_changed"):
-            try:
-                d[key] = json.loads(d[key]) if d[key] else []
-            except (json.JSONDecodeError, TypeError):
-                d[key] = []
-        result.append(d)
-    return result
+    return [_fix_window_row_to_dict(row) for row in rows]
 
 
 def expire_stale_windows(expiry_hours: int = _WINDOW_EXPIRY_HOURS) -> int:

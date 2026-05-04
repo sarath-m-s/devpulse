@@ -609,7 +609,7 @@ def generate_toil_script(pattern_id: int) -> dict[str, Any]:
         return {"error": f"Pattern {pattern_id} not found."}
     provider, _ = get_llm_provider()
     if not provider.is_available():
-        return {"error": "No LLM provider configured. Go to Config screen (8) to set one."}
+        return {"error": "No LLM provider configured. Go to Config screen (9) to set one."}
     try:
         from devpulse.generators.script_gen import generate_script
         raw = generate_script(pattern, provider)
@@ -654,6 +654,71 @@ def save_toil_script(code: str, destination: str, pattern_id: int | None = None)
         return f"✓ Saved to {path}"
     except Exception as exc:
         return f"Error saving: {exc}"
+
+
+# ---------------------------------------------------------------------------
+# Fix knowledge base (RAG)
+# ---------------------------------------------------------------------------
+
+def fetch_fix_overview() -> dict[str, Any]:
+    """Stats, embedding provider, and open fix windows for the TUI."""
+    from devpulse.config import load_config
+    from devpulse.rag.embed_factory import get_embedding_provider
+    from devpulse.rag.fix_tracker import expire_stale_windows, get_open_windows
+
+    expired = expire_stale_windows()
+    open_wins = get_open_windows()
+    stats = db.get_fix_stats()
+    cfg = load_config()
+    embed = get_embedding_provider(cfg)
+    windows: list[dict[str, Any]] = []
+    for w in open_wins:
+        em_row = db.get_error_memory_by_hash(w.get("error_hash") or "")
+        pattern = ((em_row.get("error_pattern") if em_row else None) or "?")[:200]
+        windows.append({
+            "id": w["id"],
+            "pattern": pattern,
+            "project": w.get("project") or "",
+            "commands_count": len(w.get("commands_after") or []),
+        })
+    return {
+        "embedding_name": embed.name,
+        "embedding_ok": embed.is_available(),
+        "expired_stale": expired,
+        "open_windows": windows,
+        **stats,
+    }
+
+
+def fetch_fix_history(limit: int = 40) -> list[dict[str, Any]]:
+    return db.get_fix_records(limit=limit)
+
+
+def run_fix_suggest(
+    command: str,
+    exit_code: int = 1,
+    project: str | None = None,
+    top_k: int = 5,
+) -> list[dict[str, Any]]:
+    from devpulse.config import load_config
+    from devpulse.rag.embed_factory import get_embedding_provider
+    from devpulse.rag.retriever import FixRetriever
+
+    cfg = load_config()
+    rag_cfg = cfg.get("rag", {})
+    embed = get_embedding_provider(cfg)
+    retriever = FixRetriever(
+        embedding_provider=embed,
+        fuzzy_threshold=rag_cfg.get("fuzzy_threshold", 0.25),
+        semantic_threshold=rag_cfg.get("semantic_threshold", 0.60),
+    )
+    raw = retriever.suggest(
+        command,
+        exit_code=exit_code,
+        project=project,
+        top_k=top_k,
+    )
+    return [{k: v for k, v in s.items() if not str(k).startswith("_")} for s in raw]
 
 
 # ---------------------------------------------------------------------------

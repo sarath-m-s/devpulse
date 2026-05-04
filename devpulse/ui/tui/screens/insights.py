@@ -126,7 +126,7 @@ class InsightsScreen(VimVerticalScroll):
         if not available:
             self.query_one("#ins-list", Static).update(
                 "[#e87b5a]●[/#e87b5a] No LLM provider available.\n"
-                "[dim]Configure one in the Config screen (8) or run "
+                "[dim]Configure one in the Config screen (9) or run "
                 "`devpulse config set llm.provider ollama`[/dim]"
             )
             self._insights_loaded = False  # allow retry once provider is configured

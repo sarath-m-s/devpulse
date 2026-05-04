@@ -3,7 +3,12 @@
 import pytest
 
 from devpulse import db
-from devpulse.collectors.shell import log_command, _parse_zsh_history, _parse_bash_history
+from devpulse.collectors.shell import (
+    log_command,
+    _parse_zsh_history,
+    _parse_bash_history,
+    success_is_devpulse_meta_only,
+)
 from devpulse.analyzers.toil import normalize_command
 
 
@@ -61,6 +66,25 @@ class TestLogCommand:
         log_command("ls", str(tmp_path), 0, 0)
         events = db.query_events(event_type="shell_cmd")
         assert events[0]["project"] is None
+
+
+class TestDevpulseMetaCommands:
+    def test_fix_suggest_is_meta(self):
+        assert success_is_devpulse_meta_only('devpulse fix-suggest "pytest tests/"')
+
+    def test_fix_status_is_meta(self):
+        assert success_is_devpulse_meta_only("devpulse fix-status")
+
+    def test_python_module_invocation_meta(self):
+        assert success_is_devpulse_meta_only("python -m devpulse.cli fix-history")
+
+    def test_uv_run_meta(self):
+        assert success_is_devpulse_meta_only("uv run devpulse fix-suggest foo")
+
+    def test_real_project_command_not_meta(self):
+        assert not success_is_devpulse_meta_only("pytest tests/")
+        assert not success_is_devpulse_meta_only("pod install")
+        assert not success_is_devpulse_meta_only("docker build -t x .")
 
 
 class TestZshHistoryParsing:

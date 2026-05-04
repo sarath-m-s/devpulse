@@ -197,6 +197,22 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_fix_windows_hash   ON fix_windows(error_hash);
             CREATE INDEX IF NOT EXISTS idx_fix_windows_status ON fix_windows(status);
         """)
+        _migrate_schema(conn)
+
+
+def _migrate_schema(conn: sqlite3.Connection) -> None:
+    """Lightweight ALTERs for existing installs."""
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(fix_windows)").fetchall()]
+    if cols and "workdir" not in cols:
+        conn.execute("ALTER TABLE fix_windows ADD COLUMN workdir TEXT")
+
+
+def purge_fix_intel() -> dict[str, int]:
+    """Remove all fix KB rows (records + windows). Embeddings live on fix_records."""
+    with _write_lock, _get_conn() as conn:
+        n_fr = conn.execute("DELETE FROM fix_records").rowcount or 0
+        n_fw = conn.execute("DELETE FROM fix_windows").rowcount or 0
+    return {"fix_records_deleted": n_fr, "fix_windows_deleted": n_fw}
 
 
 # ---------------------------------------------------------------------------

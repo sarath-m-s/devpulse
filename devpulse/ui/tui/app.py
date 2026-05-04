@@ -18,6 +18,7 @@ _TAB_ORDER = [
     ("week",     "Week",     "This Week"),
     ("projects", "Projects", "Projects"),
     ("toil",     "Toil",     "Toil Detector"),
+    ("fixes",    "Fixes",    "Error fix KB"),
     ("focus",    "Focus",    "Focus Analysis"),
     ("insights", "Insights", "AI Insights"),
     ("profile",  "Profile",  "Developer Profile"),
@@ -92,7 +93,7 @@ class KeyBar(Static):
         return (
             f"[bold #5e6ad2]#{tab_num}[/] [#8a8f98]{tab_title}[/]  "
             f"[dim #23252a]│[/]  "
-            f"[#5e6ad2]1-8[/#5e6ad2] screens  "
+            f"[#5e6ad2]1-9[/#5e6ad2] screens  "
             f"[#5e6ad2]tab[/#5e6ad2] next  "
             f"[#5e6ad2]r[/#5e6ad2] refresh  "
             f"[#5e6ad2]j/k[/#5e6ad2] scroll  "
@@ -135,10 +136,11 @@ class DevPulseTUI(App):
         Binding("2", "switch_tab('week')",     "Week",     show=False),
         Binding("3", "switch_tab('projects')", "Projects", show=False),
         Binding("4", "switch_tab('toil')",     "Toil",     show=False),
-        Binding("5", "switch_tab('focus')",    "Focus",    show=False),
-        Binding("6", "switch_tab('insights')", "Insights", show=False),
-        Binding("7", "switch_tab('profile')",  "Profile",  show=False),
-        Binding("8", "switch_tab('config')",   "Config",   show=False),
+        Binding("5", "switch_tab('fixes')",    "Fixes",    show=False),
+        Binding("6", "switch_tab('focus')",    "Focus",    show=False),
+        Binding("7", "switch_tab('insights')", "Insights", show=False),
+        Binding("8", "switch_tab('profile')",  "Profile",  show=False),
+        Binding("9", "switch_tab('config')",   "Config",   show=False),
         Binding("tab",       "next_tab", "Next view", show=False),
         Binding("shift+tab", "prev_tab", "Prev view", show=False),
         Binding("r", "refresh", "Refresh", show=False),
@@ -160,6 +162,7 @@ class DevPulseTUI(App):
             from devpulse.ui.tui.screens.week     import WeekScreen
             from devpulse.ui.tui.screens.projects import ProjectsScreen
             from devpulse.ui.tui.screens.toil     import ToilScreen
+            from devpulse.ui.tui.screens.fixes    import FixesScreen
             from devpulse.ui.tui.screens.focus    import FocusScreen
             from devpulse.ui.tui.screens.insights import InsightsScreen
             from devpulse.ui.tui.screens.profile  import ProfileScreen
@@ -170,6 +173,7 @@ class DevPulseTUI(App):
                 "week":     WeekScreen,
                 "projects": ProjectsScreen,
                 "toil":     ToilScreen,
+                "fixes":    FixesScreen,
                 "focus":    FocusScreen,
                 "insights": InsightsScreen,
                 "profile":  ProfileScreen,
@@ -304,10 +308,11 @@ class DevPulseTUI(App):
 
     def action_help(self) -> None:
         lines = [
-            "1 Today  2 Week  3 Projects  4 Toil  5 Focus  6 AI  7 Profile  8 Config",
+            "1 Today  2 Week  3 Projects  4 Toil  5 Fixes  6 Focus  7 AI  8 Profile  9 Config",
             "tab / shift+tab  cycle screens",
             "j / k  scroll up/down    r  refresh    q  quit",
             "Toil: Enter / a  generate alias    s/z/a  save alias",
+            "Fixes: i  focus search box    Enter  run lookup",
             "Insights: i  ask question    R  re-run",
         ]
         self.notify("\n".join(lines), timeout=8)

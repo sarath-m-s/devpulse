@@ -1643,11 +1643,16 @@ def fix_done(
     if not fix_summary and fix_cmds:
         fix_summary = f"Run: {' → '.join(fix_cmds[:3])}"
 
+    from devpulse.rag.fix_tracker import capture_workdir_git_diff
+
+    fix_diff = capture_workdir_git_diff(win.get("workdir"))
+
     fix_record_id = db.upsert_fix_record(
         error_hash=ehash,
         error_pattern=pattern,
         fix_summary=fix_summary,
         fix_commands=fix_cmds,
+        fix_diff=fix_diff,
         project=win.get("project"),
         source="manual",
     )
@@ -1658,6 +1663,7 @@ def fix_done(
             error_id=em_row["id"],
             fix_commands=fix_cmds,
             fix_description=fix_summary,
+            fix_diff=fix_diff,
         )
 
     # Try to embed (best-effort)
@@ -1764,6 +1770,12 @@ def fix_suggest(
             if len(s["fix_commands"]) > 3:
                 cmds += "…"
             lines.append(f"     [dim]Commands:[/dim] [cyan]{cmds}[/cyan]")
+        if s.get("fix_diff"):
+            fd = s["fix_diff"][:500]
+            fd_esc = fd.replace("[", "\\[").replace("]", "\\]")
+            lines.append(f"     [dim]Git diff:[/dim]\n     [dim]{fd_esc}[/dim]")
+            if len(s["fix_diff"]) > 500:
+                lines.append("     [dim]…[/dim]")
         if s.get("project"):
             lines.append(f"     [dim]Project:[/dim] {s['project']}")
         lines.append("")
@@ -1836,6 +1848,34 @@ def fix_history(
 
     console.print(Panel(table, title="[bold blue]DevPulse · Fix history[/bold blue]", box=box.ROUNDED))
     console.print(f"[dim]👤 = manual (fix-done)  🤖 = auto-detected   Total: {len(records)}[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# devpulse fix-purge — reset fix knowledge tables
+# ---------------------------------------------------------------------------
+
+@app.command(name="fix-purge")
+def fix_purge(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm deletion"),
+) -> None:
+    """Delete all fix_records and fix_windows (full reset of the fix KB)."""
+    if not yes:
+        console.print(
+            "[yellow]This deletes every saved fix and fix window.[/yellow]\n"
+            "Run with [bold]--yes[/bold] to confirm."
+        )
+        raise typer.Exit(1)
+    db.init_db()
+    counts = db.purge_fix_intel()
+    console.print(
+        Panel(
+            f"  Removed [bold]{counts['fix_records_deleted']}[/bold] fix record(s)\n"
+            f"  Removed [bold]{counts['fix_windows_deleted']}[/bold] fix window(s)",
+            title="[bold green]Fix knowledge purged[/bold green]",
+            border_style="green",
+            box=box.ROUNDED,
+        )
+    )
 
 
 # ---------------------------------------------------------------------------

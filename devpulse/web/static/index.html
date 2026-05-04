@@ -267,6 +267,11 @@
       Toil
       <span class="badge" id="toil-badge">…</span>
     </a>
+    <a class="nav-item" data-view="fixes" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 11l-2 2v-3h2.5M11 3l2-2v3h-2.5M4 4l7 7M7 4l3 3M4 7l3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Fix KB
+      <span class="badge" id="fix-open-badge" style="opacity:0.45">0</span>
+    </a>
     <a class="nav-item" data-view="focus" href="#">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h1.5M10.5 7H12M7 2v1.5M7 10.5V12M4.4 4.4l1.05 1.05M8.55 8.55l1.05 1.05M8.55 5.45 7.5 6.5M4.4 9.6l1.05-1.05" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
       Focus
@@ -463,6 +468,59 @@
       </div>
     </div>
 
+    <!-- FIX KB -->
+    <div class="view" id="view-fixes">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Error fix knowledge</div>
+          <div class="page-sub">Learned fixes from your shell — match failing commands to what worked before</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn" id="fix-refresh-btn">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M10.5 2A5 5 0 1 0 11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M9 2h1.5V3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Embedding backend</div><div class="stat-value" id="fix-embed-name">—</div><div class="stat-delta" id="fix-embed-ok">—</div></div>
+        <div class="stat-card"><div class="stat-label">Fix records</div><div class="stat-value" id="fix-rec-total">—</div><div class="stat-delta">saved patterns</div></div>
+        <div class="stat-card"><div class="stat-label">With vectors</div><div class="stat-value" id="fix-rec-vec">—</div><div class="stat-delta">semantic tier</div></div>
+        <div class="stat-card"><div class="stat-label">Open windows</div><div class="stat-value" id="fix-win-open">—</div><div class="stat-delta">in progress</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Open fix windows</span><span class="tag tag-warn">needs fix or fix-done</span></div>
+          <div class="panel-body-sm"><div class="toil-list" id="fix-windows-list"><div class="loading">Loading…</div></div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Terminal commands</span></div>
+          <div class="panel-body-sm" style="font-size:12px;color:var(--ink-muted);line-height:1.8;font-family:var(--mono)">
+            devpulse fix-status<br/>
+            devpulse fix-history<br/>
+            devpulse fix-suggest &quot;pytest tests/&quot;<br/>
+            devpulse fix-done
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Look up a failing command</span><span class="tag tag-muted">exact → fuzzy → semantic</span></div>
+        <div class="panel-body">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+            <input id="fix-q-cmd" type="text" placeholder="e.g. pytest tests/ / docker build ." style="flex:1;min-width:220px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:8px 12px;font-size:13px;color:var(--ink);font-family:var(--mono);outline:none;" />
+            <label style="font-size:11px;color:var(--ink-tertiary);display:flex;align-items:center;gap:6px">exit <input id="fix-q-exit" type="text" value="1" style="width:44px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:6px 8px;font-size:12px;color:var(--ink);font-family:var(--mono);" /></label>
+            <input id="fix-q-proj" type="text" placeholder="project filter (optional)" style="width:160px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:8px 12px;font-size:12px;color:var(--ink);font-family:var(--mono);" />
+            <button class="btn btn-accent" id="fix-suggest-btn">Search</button>
+          </div>
+          <div class="insights-list" id="fix-suggest-results"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Saved fixes</span><span class="tag tag-muted" id="fix-hist-tag">—</span></div>
+        <div class="panel-body" style="padding:0"><table class="proj-table" id="fix-history-table"><tbody><tr><td class="loading" style="padding:16px">Loading…</td></tr></tbody></table></div>
+      </div>
+    </div>
+
     <!-- FOCUS -->
     <div class="view" id="view-focus">
       <div class="page-header">
@@ -571,6 +629,26 @@
         </div>
 
         <div class="panel">
+          <div class="panel-header"><span class="panel-title">Fix knowledge (RAG)</span></div>
+          <div class="config-section">
+            <div class="config-row">
+              <div><div class="config-key">Auto-track fix windows</div><div class="config-desc">Open a window when a command fails; learn from the next steps</div></div>
+              <div class="toggle on" id="toggle-rag-track"></div>
+            </div>
+            <div class="config-row">
+              <div><div class="config-key">Embedding provider</div><div class="config-desc">For semantic search — auto tries local, Ollama, then OpenAI</div></div>
+              <select class="config-select" id="cfg-embed-provider">
+                <option value="auto">auto</option>
+                <option value="local">local (sentence-transformers)</option>
+                <option value="ollama">ollama</option>
+                <option value="openai">openai</option>
+                <option value="none">none</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
           <div class="panel-header"><span class="panel-title">Privacy</span></div>
           <div class="config-section">
             <div class="config-row"><div><div class="config-key">Local-only mode</div><div class="config-desc">Never send data to any external service</div></div><div class="toggle on" id="toggle-local" data-cfg="privacy.local_only"></div></div>
@@ -616,6 +694,16 @@
 
 <script>
   const COLORS = ['#5e6ad2','#fbbf24','#4ade80','#f472b6','#60a5fa','#fb923c','#a78bfa','#34d399'];
+
+  function esc(s) {
+    if (s == null || s === undefined) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   const QUICK_QUERIES = [
     'What project should I focus on tomorrow?',
     'When is my best time for deep work?',
@@ -741,6 +829,16 @@
     return r.json();
   }
 
+  async function apiPost(path, body) {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+
   // Status
   async function loadStatus() {
     try {
@@ -752,6 +850,15 @@
       document.getElementById('cfg-uptime').textContent = s.uptime || '—';
       document.getElementById('cfg-events').textContent = (s.total_events || 0).toLocaleString();
       document.getElementById('cfg-db-size').textContent = s.db_size || '—';
+    } catch(_) {}
+    try {
+      const fst = await api('/api/fix/status');
+      const badge = document.getElementById('fix-open-badge');
+      if (badge) {
+        const n = (fst.open_windows || []).length;
+        badge.textContent = n;
+        badge.style.opacity = n > 0 ? '1' : '0.45';
+      }
     } catch(_) {}
   }
 
@@ -1132,6 +1239,96 @@
     } catch(e) { resp.textContent = 'Error contacting API.'; }
   }
 
+  // FIX KB
+  let _fixesLoaded = false;
+  async function renderFixes(force) {
+    if (_fixesLoaded && !force) return;
+    _fixesLoaded = true;
+    try {
+      const st = await api('/api/fix/status');
+      document.getElementById('fix-embed-name').textContent = st.embedding_provider || '—';
+      document.getElementById('fix-embed-ok').textContent = st.embedding_available ? '● available' : '○ offline';
+      document.getElementById('fix-embed-ok').className = 'stat-delta ' + (st.embedding_available ? 'up' : 'down');
+      document.getElementById('fix-rec-total').textContent = st.fix_records_total ?? 0;
+      document.getElementById('fix-rec-vec').textContent = st.fix_records_with_embedding ?? 0;
+      document.getElementById('fix-win-open').textContent = st.windows_open ?? 0;
+
+      const badge = document.getElementById('fix-open-badge');
+      if (badge) {
+        const n = (st.open_windows || []).length;
+        badge.textContent = n;
+        badge.style.opacity = n > 0 ? '1' : '0.45';
+      }
+
+      const wl = document.getElementById('fix-windows-list');
+      const wins = st.open_windows || [];
+      if (!wins.length) {
+        wl.innerHTML = '<div class="empty">No open fix windows. Run a failing command inside a git repo, then recover.</div>';
+      } else {
+        wl.innerHTML = wins.map(w =>
+          `<div class="toil-item">
+            <div class="toil-header"><span class="toil-cmd">#${w.id} ${esc(w.pattern)}</span><span class="toil-freq">${esc(w.project || '—')}</span></div>
+            <div class="toil-meta">${w.commands_count || 0} commands logged · ${esc(w.started_at || '')}</div>
+          </div>`
+        ).join('');
+      }
+
+      const hist = await api('/api/fix/history?limit=80');
+      const recs = hist.records || [];
+      document.getElementById('fix-hist-tag').textContent = `${recs.length} shown`;
+      const tb = document.getElementById('fix-history-table');
+      if (!recs.length) {
+        tb.innerHTML = '<tbody><tr><td colspan="5" style="padding:16px" class="empty">No fix records yet. They appear after a resolved fix window or <code>devpulse fix-done</code>.</td></tr></tbody>';
+      } else {
+        tb.innerHTML =
+          '<thead><tr><th>ID</th><th>Error pattern</th><th>Summary</th><th>Commands</th><th>Project</th></tr></thead><tbody>' +
+          recs.map(r => {
+            const cmds = (r.fix_commands || []).join(' → ');
+            return `<tr>
+              <td>${r.id}</td>
+              <td><code>${esc(r.error_pattern || '')}</code></td>
+              <td>${esc(r.fix_summary || '—')}</td>
+              <td style="font-family:var(--mono);font-size:11px;max-width:280px;overflow:hidden;text-overflow:ellipsis">${esc(cmds)}</td>
+              <td>${esc(r.project || '—')}</td>
+            </tr>`;
+          }).join('') + '</tbody>';
+      }
+    } catch(e) { console.error('fixes', e); }
+  }
+
+  async function runFixSuggest() {
+    const cmd = document.getElementById('fix-q-cmd').value.trim();
+    const exitEl = document.getElementById('fix-q-exit');
+    const exit_code = parseInt(exitEl && exitEl.value !== '' ? exitEl.value : '1', 10) || 1;
+    const projRaw = document.getElementById('fix-q-proj').value.trim();
+    const project = projRaw ? projRaw : null;
+    const el = document.getElementById('fix-suggest-results');
+    if (!cmd) { el.innerHTML = '<div class="empty">Enter a failing command.</div>'; return; }
+    el.innerHTML = '<div class="loading">Searching fix knowledge base…</div>';
+    try {
+      const data = await apiPost('/api/fix/suggest', { command: cmd, exit_code, project, top_k: 6 });
+      const sugg = data.suggestions || [];
+      if (!sugg.length) {
+        el.innerHTML = '<div class="empty">No matches. Teach DevPulse by closing fix windows or running <code>devpulse fix-done</code>.</div>';
+        return;
+      }
+      el.innerHTML = sugg.map(s => {
+        const tier = s.tier === 'exact' ? 'tag-success' : (s.tier === 'semantic' ? 'tag-primary' : 'tag-warn');
+        const pct = Math.round((s.score || 0) * 100);
+        const cmds = (s.fix_commands || []).join(' → ');
+        const sum = s.fix_summary ? `<div style="margin-top:6px">${esc(s.fix_summary)}</div>` : '';
+        return `<div class="insight-item" style="margin-bottom:10px">
+          <div class="insight-text"><span class="tag ${tier}">${esc(s.tier)} ${pct}%</span>${sum}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-muted);margin-top:8px;line-height:1.5">${esc(cmds)}</div>
+          ${s.project ? `<div style="font-size:11px;color:var(--ink-tertiary);margin-top:4px">project: ${esc(s.project)}</div>` : ''}
+        </div>`;
+      }).join('');
+    } catch(e) {
+      el.innerHTML = '<div class="empty">Could not run search.</div>';
+      console.error(e);
+    }
+  }
+
   // CONFIG
   let _configLoaded = false;
   let _pendingConfig = {};
@@ -1165,6 +1362,19 @@
       document.getElementById('cfg-uptime').textContent = status.uptime || '—';
       document.getElementById('cfg-events').textContent = (status.total_events||0).toLocaleString();
       document.getElementById('cfg-db-size').textContent = status.db_size || '—';
+
+      const embedSel = document.getElementById('cfg-embed-provider');
+      if (embedSel) {
+        const ep = cfg.rag?.embedding?.provider || 'auto';
+        [...embedSel.options].forEach(o => { o.selected = o.value === ep; });
+        embedSel.onchange = () => { _pendingConfig['rag.embedding.provider'] = embedSel.value; };
+      }
+      const trk = document.getElementById('toggle-rag-track');
+      if (trk) {
+        const on = cfg.rag?.auto_track_fixes !== false;
+        trk.classList.toggle('on', on);
+        trk.onclick = () => { trk.classList.toggle('on'); _pendingConfig['rag.auto_track_fixes'] = trk.classList.contains('on'); };
+      }
     } catch(e) { console.error('config', e); }
   }
 
@@ -1172,6 +1382,7 @@
   const renderFns = {
     today: f => renderToday(f), week: f => renderWeek(f),
     projects: f => renderProjects(f), toil: f => renderToil(f),
+    fixes: f => renderFixes(f),
     focus: f => renderFocus(f), insights: f => renderInsights(f), config: f => renderConfig(f),
   };
 
@@ -1191,6 +1402,13 @@
 
   document.getElementById('refresh-btn').addEventListener('click', () => {
     _todayLoaded = false; renderToday(true); loadStatus();
+  });
+  document.getElementById('fix-refresh-btn').addEventListener('click', () => {
+    _fixesLoaded = false; renderFixes(true); loadStatus();
+  });
+  document.getElementById('fix-suggest-btn').addEventListener('click', runFixSuggest);
+  document.getElementById('fix-q-cmd').addEventListener('keydown', e => {
+    if (e.key === 'Enter') runFixSuggest();
   });
   document.getElementById('run-insights-btn').addEventListener('click', () => {
     _insightsLoaded = false; renderInsights(true);
