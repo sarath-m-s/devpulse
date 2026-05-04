@@ -134,25 +134,39 @@ class ErrorMemory:
         fix_commands: list[str],
         fix_diff: str | None = None,
     ) -> str:
-        """Use LLM to generate a human-readable description of the fix."""
+        """Use LLM to generate an actionable tip for this recurring error pattern."""
         if not self.llm:
-            cmds_str = " → ".join(fix_commands[:5])
-            return f"Fixed by running: {cmds_str}"
+            cmds_str = " → ".join(fix_commands[:3])
+            return f"Run: {cmds_str}" if fix_commands else ""
 
-        diff_section = f"\nDiff:\n{fix_diff[:800]}" if fix_diff else ""
+        error_type = _classify_error_type(error_pattern)
+        diff_section = (
+            f"\n\nGit diff after fix:\n```diff\n{fix_diff[:600]}\n```"
+            if fix_diff else ""
+        )
+        fix_cmds_str = " → ".join(fix_commands[:5])
+
         prompt = (
-            f"A developer's command failed (normalized: '{error_pattern}').\n"
-            f"They fixed it by running: {' → '.join(fix_commands[:5])}"
+            f"A developer has this recurring failing command pattern: `{error_pattern}`\n"
+            f"Category: {error_type}\n"
+            f"Commands run after the failure: {fix_cmds_str}"
             f"{diff_section}\n\n"
-            "Write ONE short sentence (max 20 words) describing what the fix did. "
-            "No preamble, just the sentence."
+            "Give a SHORT, ACTIONABLE tip (1-2 sentences):\n"
+            "1. What is the most likely ROOT CAUSE of this error?\n"
+            "2. What exact step should the developer take to fix or prevent it?\n"
+            "Be specific — reference the actual command/tool involved.\n"
+            "Output ONLY the tip text. No preamble, no 'Tip:' prefix."
         )
         try:
             from devpulse.llm.base import DEVPULSE_SYSTEM_PROMPT
             resp = self.llm.analyze(prompt, system_prompt=DEVPULSE_SYSTEM_PROMPT)
-            return resp.content.strip()
+            tip = resp.content.strip()
+            # Strip any "Tip:" or emoji prefix the LLM might prepend
+            for prefix in ("Tip:", "💡", "Fix:", "Note:"):
+                tip = tip.removeprefix(prefix).strip()
+            return tip
         except Exception:
-            return f"Fixed by running: {' → '.join(fix_commands[:3])}"
+            return f"Run: {' → '.join(fix_commands[:3])}" if fix_commands else ""
 
     def detect_fixes_from_history(self, session_gap_minutes: int = 10) -> int:
         """

@@ -2,15 +2,78 @@
 
 from __future__ import annotations
 
+import os
 from collections import defaultdict
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from devpulse import db
 
+_HOME = str(Path.home())
+
+# Apps recognised as browsers — window titles parsed differently
+_BROWSER_APPS = frozenset({
+    "Google Chrome", "Safari", "Firefox", "Arc", "Brave Browser",
+    "Microsoft Edge", "Opera", "Chromium", "Vivaldi",
+})
+
 
 def _parse_ts(ts: str) -> datetime:
     return datetime.strptime(ts[:19], "%Y-%m-%dT%H:%M:%S")
+
+
+def _label_from_shell_event(ev: dict) -> str | None:
+    """Return a meaningful project label for a shell event.
+
+    Priority: stored project → cwd-derived label → None (skip).
+    """
+    proj = ev.get("project")
+    if proj:
+        return proj
+    # Fall back to cwd for home-dir or untracked-dir commands
+    cwd = (ev.get("data") or {}).get("cwd", "")
+    if not cwd:
+        return None
+    if cwd.rstrip("/") == _HOME:
+        return "~/home"
+    basename = os.path.basename(cwd.rstrip("/"))
+    return basename if basename else None
+
+
+def _label_from_window_event(ev: dict) -> str | None:
+    """Return a meaningful app/project label for a window_focus event.
+
+    Uses the stored app name; for browsers, extracts the page context from
+    the tab title.
+    """
+    data = ev.get("data") or {}
+    app = (data.get("app") or "").strip()
+    title = (data.get("title") or "").strip()
+
+    if not app and not title:
+        return None
+
+    if app in _BROWSER_APPS and title:
+        # Strip the " — AppName" suffix to get the tab/page title
+        if " — " in title:
+            page = title.split(" — ")[0].strip()
+        elif " - " in title:
+            parts = title.split(" - ")
+            page = " - ".join(parts[:-1]).strip() if len(parts) > 1 else title
+        else:
+            page = title
+        # Truncate and annotate with short app hint
+        short_app = app.split()[0]  # "Google" from "Google Chrome"
+        page_short = page[:22].strip()
+        return f"{page_short} ({short_app})" if page_short else app
+    elif app:
+        return app
+    elif " — " in title:
+        return title.split(" — ")[-1].strip()[:20]
+    elif title:
+        return title[:20]
+    return None
 
 
 def compute_context_switches(
@@ -33,12 +96,13 @@ def compute_context_switches(
     # Merge and sort all focus signals
     signals: list[tuple[datetime, str]] = []
     for ev in events:
-        proj = ev.get("project") or "unknown"
-        signals.append((_parse_ts(ev["timestamp"]), proj))
+        proj = _label_from_shell_event(ev)
+        if proj:
+            signals.append((_parse_ts(ev["timestamp"]), proj))
     for ev in win_events:
-        title = ev.get("data", {}).get("title", "")
-        proj = title.split(" — ")[-1].strip() if " — " in title else "unknown"
-        signals.append((_parse_ts(ev["timestamp"]), proj))
+        proj = _label_from_window_event(ev)
+        if proj:
+            signals.append((_parse_ts(ev["timestamp"]), proj))
 
     signals.sort(key=lambda x: x[0])
     if not signals:

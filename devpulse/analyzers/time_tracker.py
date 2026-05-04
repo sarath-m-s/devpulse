@@ -2,12 +2,34 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections import defaultdict
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from devpulse import db
+
+_HOME = str(Path.home())
+
+
+def _project_label(ev: dict) -> str:
+    """Return a human-readable project label for a shell/git event.
+
+    Falls back to the cwd-derived directory name (or '~/home') when the
+    event was recorded outside a tracked git repository.
+    """
+    proj = ev.get("project")
+    if proj:
+        return proj
+    cwd = (ev.get("data") or {}).get("cwd", "")
+    if not cwd:
+        return "~/home"
+    if cwd.rstrip("/") == _HOME:
+        return "~/home"
+    basename = os.path.basename(cwd.rstrip("/"))
+    return basename if basename else "~/home"
 
 # Minutes per commit as base contribution
 _COMMIT_MINUTES = 5
@@ -58,7 +80,7 @@ def compute_time_per_project(
     # Group by project
     by_project: dict[str, list[tuple[datetime, str]]] = defaultdict(list)
     for ev in cmd_events:
-        proj = ev.get("project") or "unknown"
+        proj = _project_label(ev)
         ts = _parse_ts(ev["timestamp"])
         cmd = ev.get("data", {}).get("cmd", "")
         by_project[proj].append((ts, cmd))
@@ -88,7 +110,7 @@ def compute_time_per_project(
     # --- Git commits add base minutes ---
     git_events = db.query_events(event_type="git_commit", since=since, until=until)
     for ev in git_events:
-        proj = ev.get("project") or "unknown"
+        proj = _project_label(ev)
         if proj not in result:
             result[proj] = {"total_minutes": 0.0, "by_category": {}, "commits": 0}
         result[proj]["total_minutes"] += _COMMIT_MINUTES
@@ -102,7 +124,7 @@ def compute_time_per_project(
         for ev in cmd_events:
             cmd = ev.get("data", {}).get("cmd", "")
             if _is_git_commit_command(cmd):
-                proj = ev.get("project") or "unknown"
+                proj = _project_label(ev)
                 if proj not in result:
                     result[proj] = {"total_minutes": 0.0, "by_category": {}, "commits": 0}
                 result[proj]["commits"] += 1

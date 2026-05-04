@@ -100,21 +100,23 @@ def render_today(width: int | None = None) -> None:
     )
 
     # Projects section
-    if time_data:
+    _SKIP_DASH = {"unknown", "Unknown", "~/home", ""}
+    known_time_data = {k: v for k, v in time_data.items() if k not in _SKIP_DASH}
+    if known_time_data:
         proj_table = Table(show_header=True, box=box.SIMPLE, padding=(0, 1), show_edge=False)
         proj_table.add_column("Project", style="bold cyan", min_width=20)
         proj_table.add_column("", min_width=24)  # bar
         proj_table.add_column("Time", justify="right", style="white")
         proj_table.add_column("%", justify="right", style="dim")
 
-        total_m = max(total_minutes, 1)
+        known_total_m = max(sum(s["total_minutes"] for s in known_time_data.values()), 1)
         bar_colors = ["green", "blue", "magenta", "yellow", "cyan"]
         sorted_projects = sorted(
-            time_data.items(), key=lambda x: x[1]["total_minutes"], reverse=True
+            known_time_data.items(), key=lambda x: x[1]["total_minutes"], reverse=True
         )
         for i, (proj, stats) in enumerate(sorted_projects[:8]):
             mins = stats["total_minutes"]
-            pct = mins / total_m
+            pct = mins / known_total_m
             color = bar_colors[i % len(bar_colors)]
             bar = _bar(pct, 22)
             proj_table.add_row(
@@ -127,7 +129,7 @@ def render_today(width: int | None = None) -> None:
         console.print(
             Panel(proj_table, title="[bold]📁 Projects[/bold]", border_style="cyan", box=box.ROUNDED)
         )
-    else:
+    elif not known_time_data:
         console.print(
             Panel(
                 "[dim]No project activity yet today.[/dim]",
@@ -349,16 +351,18 @@ def render_week() -> None:
         )
     )
 
-    # Weekly project time bar chart
-    if time_data:
-        total_m = max(sum(p["total_minutes"] for p in time_data.values()), 1)
+    # Weekly project time bar chart — filter non-project entries
+    _SKIP_W = {"unknown", "Unknown", "~/home", ""}
+    known_week_data = {k: v for k, v in time_data.items() if k not in _SKIP_W}
+    if known_week_data:
+        total_m = max(sum(p["total_minutes"] for p in known_week_data.values()), 1)
         table = Table(show_header=False, box=None, padding=(0, 1))
         table.add_column("Project", style="bold", min_width=18)
         table.add_column("Bar", min_width=30)
         table.add_column("Hours", justify="right", style="cyan")
 
         for proj, stats in sorted(
-            time_data.items(), key=lambda x: x[1]["total_minutes"], reverse=True
+            known_week_data.items(), key=lambda x: x[1]["total_minutes"], reverse=True
         )[:8]:
             mins = stats["total_minutes"]
             bar = _bar(mins / total_m, 28)
@@ -371,7 +375,7 @@ def render_week() -> None:
     # Focus summary
     focus_text = Text()
     # Check if data quality is limited (all projects are "unknown" = backfill data)
-    all_unknown = set(time_data.keys()) <= {"unknown"}
+    all_unknown = set(time_data.keys()) <= {"unknown", "~/home"}
     if all_unknown and time_data:
         focus_text.append(
             "  ⚠  Project names are 'unknown' because data came from shell history backfill\n"
@@ -383,9 +387,15 @@ def render_week() -> None:
     focus_text.append(f"  Fragmentation score: {ctx['fragmentation_score']}/100\n")
     focus_text.append(f"  Switches/day: {ctx.get('switches_per_day', 0):.1f}  ")
     focus_text.append(f"Switches/hour: {ctx.get('switches_per_hour', 0):.2f}\n")
-    if ctx["top_transitions"] and not all_unknown:
+    _skip_proj = {"unknown", "Unknown", "~/home", ""}
+    clean_transitions = [
+        t for t in ctx.get("top_transitions", [])
+        if t.get("from_project") not in _skip_proj
+        and t.get("to_project") not in _skip_proj
+    ]
+    if clean_transitions and not all_unknown:
         focus_text.append("  Most common transitions:\n")
-        for t in ctx["top_transitions"][:3]:
+        for t in clean_transitions[:3]:
             focus_text.append(
                 f"    {t['from_project']} → {t['to_project']}: {t['count']}x\n"
             )

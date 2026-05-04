@@ -42,7 +42,7 @@ def fmt_dur(minutes: float | int | None) -> str:
 
 # Projects to exclude from all views — unidentified activity in home dir,
 # browser, Slack, etc. should not pollute project-level analytics.
-_SKIP_PROJECTS: frozenset[str] = frozenset({"unknown", "Unknown", ""})
+_SKIP_PROJECTS: frozenset[str] = frozenset({"unknown", "Unknown", "", "~/home"})
 
 
 def _is_known_project(name: str | None) -> bool:

@@ -640,7 +640,10 @@ def recall(
 
     if show_diff is not None:
         errors = em.get_frequent_errors(days=365, limit=1000)
-        match = next((e for e in errors if e.get("id") == show_diff), None)
+        # NOTE: can't use next() here — the Typer command named "next" shadows
+        # Python's built-in next() at module scope.
+        _candidates = [e for e in errors if e.get("id") == show_diff]
+        match = _candidates[0] if _candidates else None
         if match and match.get("fix_diff"):
             from rich.syntax import Syntax
             console.print(
@@ -1011,23 +1014,39 @@ def _print_profile(data: dict) -> None:
 
     if energy and energy.get("hourly"):
         hourly = energy["hourly"]
-        max_cmds = max((h["commands"] for h in hourly), default=1)
-        peak_hours = energy.get("peak_hours", [])
-        bar_lines = []
+        max_cmds = max((h["commands"] for h in hourly), default=1) or 1
+        peak_hours = set(energy.get("peak_hours", []))
+        low_hours  = set(energy.get("low_energy_hours", []))
+
+        def _tod_label(h: int) -> str:
+            if 5  <= h < 12: return "morning"
+            if 12 <= h < 17: return "afternoon"
+            if 17 <= h < 21: return "evening"
+            if h >= 21 or h < 5: return "night"
+            return ""
+
+        bar_lines = ["  [dim]hour  activity (commands)                    peak[/dim]"]
         for h in hourly:
-            if h["commands"] == 0 and h["hour"] not in peak_hours:
-                continue
-            filled = round(h["commands"] / max(max_cmds, 1) * 21)
-            bar = "█" * filled + "░" * (21 - filled)
-            label = "⚡ peak" if h["hour"] in peak_hours else ""
+            cmds = h["commands"]
+            if cmds == 0 and h["hour"] not in peak_hours:
+                continue  # skip completely empty, non-peak hours
+            filled = round(cmds / max_cmds * 28)
+            bar = f"[cyan]{'█' * filled}[/cyan][dim]{'░' * (28 - filled)}[/dim]"
+            peak_marker = " [bold yellow]⚡ peak[/bold yellow]" if h["hour"] in peak_hours else ""
+            low_marker  = " [dim red]low[/dim red]" if h["hour"] in low_hours else ""
             bar_lines.append(
-                f"  {h['hour']:02d}  [cyan]{bar}[/cyan]  [dim]{label}[/dim]"
+                f"  [bold]{h['hour']:02d}:00[/bold] [dim]{_tod_label(h['hour'])[:9]:<9}[/dim]"
+                f"  {bar}  [dim]{cmds:>3}[/dim]{peak_marker}{low_marker}"
             )
+
+        best_day = energy.get("best_day", "?")
+        total_cmds = energy.get("total_commands", 0)
+        total_commits = energy.get("total_commits", 0)
         sections.append(
-            f"  [bold cyan]⚡ Energy map[/bold cyan]\n"
-            + "\n".join(bar_lines[:12])
-            + f"\n  Best day: [green]{energy.get('best_day', '?')}[/green]  │  "
-            + f"Low energy: [red]{energy.get('low_energy_hours', [])}[/red]"
+            f"  [bold cyan]⚡ Energy map[/bold cyan]  [dim](30-day command activity by hour)[/dim]\n"
+            + "\n".join(bar_lines[:14])
+            + f"\n\n  [dim]Best day: [green]{best_day}[/green]  ·  "
+            + f"Total: {total_cmds} commands · {total_commits} commits[/dim]"
         )
 
     if focus:
@@ -1037,7 +1056,10 @@ def _print_profile(data: dict) -> None:
         trend_color = {"improving": "green", "worsening": "red", "stable": "yellow"}.get(
             focus.get("trend", "stable"), "yellow"
         )
-        distractors = ", ".join(focus.get("top_distractors", [])[:3]) or "none"
+        _skip = {"unknown", "Unknown", "~/home", ""}
+        distractors = ", ".join(
+            d for d in focus.get("top_distractors", [])[:5] if d not in _skip
+        ) or "none"
         sections.append(
             f"  [bold cyan]🎯 Focus pattern[/bold cyan]\n"
             f"  Avg focus block: [white]{focus.get('avg_focus_block_min', 0)} min[/white]  │  "

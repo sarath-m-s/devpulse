@@ -1,8 +1,6 @@
 ---
-description: Use a structured format for commit messages (Conventional Commits)
 alwaysApply: true
 ---
-
 # Commit messages
 
 When drafting or suggesting a commit message, follow **Conventional Commits** with a clear subject and optional body.
