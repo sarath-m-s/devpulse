@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from devpulse import db
+from ghost_pulse import db
 
 
 @pytest.fixture(autouse=True)

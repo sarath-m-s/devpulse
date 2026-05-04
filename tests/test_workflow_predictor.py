@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from devpulse import db
-from devpulse.analyzers.workflow_predictor import WorkflowPredictor, _seq_hash, _group_by_session
+from ghost_pulse import db
+from ghost_pulse.analyzers.workflow_predictor import WorkflowPredictor, _seq_hash, _group_by_session
 
 
 @pytest.fixture(autouse=True)

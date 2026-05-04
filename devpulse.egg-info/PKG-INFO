@@ -1,21 +1,31 @@
 Metadata-Version: 2.4
 Name: devpulse
-Version: 0.1.0
-Summary: A privacy-first CLI developer productivity copilot
+Version: 3.1.0
+Summary: A privacy-first CLI developer productivity copilot with intelligence layer
 Author: DevPulse Contributors
-License: MIT
+License-Expression: MIT
+Project-URL: Homepage, https://github.com/sarath-m-s/devpulse
+Project-URL: Repository, https://github.com/sarath-m-s/devpulse
+Project-URL: Issues, https://github.com/sarath-m-s/devpulse/issues
 Keywords: developer,productivity,cli,analytics
-Classifier: Development Status :: 3 - Alpha
+Classifier: Development Status :: 4 - Beta
 Classifier: Environment :: Console
 Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3 :: Only
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Classifier: Topic :: Software Development
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: typer[all]>=0.12
 Requires-Dist: rich>=13.7
+Requires-Dist: textual>=0.79
 Requires-Dist: watchdog>=4.0
 Requires-Dist: tomli>=2.0; python_version < "3.11"
 Requires-Dist: tomli-w>=1.0
@@ -26,20 +36,41 @@ Provides-Extra: openai
 Requires-Dist: openai>=1.50; extra == "openai"
 Provides-Extra: groq
 Requires-Dist: groq>=0.11; extra == "groq"
+Provides-Extra: embeddings
+Requires-Dist: sentence-transformers>=2.7; extra == "embeddings"
+Requires-Dist: numpy>=1.26; extra == "embeddings"
+Provides-Extra: rag
+Requires-Dist: sentence-transformers>=2.7; extra == "rag"
+Requires-Dist: numpy>=1.26; extra == "rag"
 Provides-Extra: all
 Requires-Dist: anthropic>=0.40; extra == "all"
 Requires-Dist: openai>=1.50; extra == "all"
 Requires-Dist: groq>=0.11; extra == "all"
+Requires-Dist: sentence-transformers>=2.7; extra == "all"
+Requires-Dist: numpy>=1.26; extra == "all"
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0; extra == "dev"
 Requires-Dist: pytest-cov>=5.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Dynamic: license-file
+
+
 
 # DevPulse
 
-A privacy-first CLI developer productivity copilot that runs entirely locally. DevPulse silently observes your workflow — shell commands, git activity, file edits — and surfaces actionable insights: repeated toil patterns, time-per-project breakdowns, context-switch scores, and auto-generated automation scripts.
+A privacy-first developer productivity copilot that runs entirely on your machine.
 
-**Everything runs locally. LLM analysis is opt-in and provider-agnostic.**
+
+
+[Installation](#installation) • [Features](#features) • [Web Dashboard](#web-dashboard) • [CLI Reference](#cli-reference) • [Configuration](#configuration) • [Contributing](#contributing)
+
+
+
+---
+
+DevPulse silently observes your workflow — shell commands, git activity, file edits, and window focus — then surfaces actionable insights: time-per-project breakdowns, repeated toil patterns, context-switch scores, deep work blocks, and auto-generated automation scripts.
+
+**No data leaves your machine. LLM analysis is opt-in and provider-agnostic.**
 
 ```
 ╭─ DevPulse · Thursday, April 23 ──────────────────────────────╮
@@ -70,195 +101,432 @@ A privacy-first CLI developer productivity copilot that runs entirely locally. D
 
 ---
 
-## Quick install
+## Installation
 
 ```bash
 pip install devpulse
-devpulse init
+devpulse init --path ~/your-projects
 ```
 
-## Setup
+Or install directly from GitHub:
 
-### 1. Install shell hooks
+```bash
+pip install git+https://github.com/sarathms/devpulse.git
+devpulse init --path ~/your-projects
+```
+
+The `--path` flag tells DevPulse where your git repos live. It can be a **parent directory containing multiple repos** (e.g. `~/work`, `~/upskill`) or a single repo. DevPulse automatically discovers all individual repos one level deep inside each folder. You can pass it multiple times:
+
+```bash
+devpulse init --path ~/work --path ~/personal --path ~/oss
+```
+
+If you omit `--path`, DevPulse scans common directories (`~/work`, `~/projects`, `~/code`, `~/src`, `~/upskill`, `~/dev`, `~/repos`, `~`) for git repos automatically. You can always add more later:
+
+```bash
+devpulse projects add ~/another-folder
+```
+
+To see all discovered repos and their activity:
+
+```bash
+devpulse projects
+```
+
+### Shell hooks
+
+Shell hooks capture every command you run with zero perceptible latency (<50ms).
 
 **zsh:**
+
 ```bash
 echo 'source "$(devpulse shell-hook --zsh)"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
 **bash:**
+
 ```bash
 echo 'source "$(devpulse shell-hook --bash)"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-### 2. Start the background daemon
+### Start the daemon
 
 ```bash
 devpulse start
 ```
 
-### 3. Check status after a few commands
+The daemon runs in the background, polling for git commits, branch switches, file changes, and (optionally) window focus. It also handles periodic data cleanup.
+
+### Verify
 
 ```bash
+devpulse status
 devpulse today
 ```
 
 ---
 
-## LLM provider setup
+## Features
 
-DevPulse works fully without an LLM — toil detection, time tracking, and dashboards need no AI. LLM is only used for `devpulse suggest` and `devpulse insights`.
+### Time tracking
 
-### Free option — Ollama (recommended)
+DevPulse estimates active development time per project by analyzing inter-command gaps, git commit activity, and window focus events. Commands are categorized into `git`, `infrastructure`, `testing`, `build`, `coding`, and `other`. An idle timeout (default 15 min) prevents inflated numbers.
+
+```bash
+devpulse today          # today's per-project breakdown
+devpulse week           # 7-day summary with trends
+```
+
+### Toil detection
+
+Finds repeated multi-command sequences (2-5 commands) you keep running manually. Patterns are normalized — variable parts like branch names, SHAs, file paths, and container IDs are stripped — so `git checkout feature-a` and `git checkout feature-b` are treated as the same pattern.
+
+```bash
+devpulse toil --days 14         # show toil from last 2 weeks
+devpulse suggest 1              # generate a bash alias for pattern #1
+```
+
+`devpulse suggest` sends the pattern to your configured LLM and generates a reusable shell alias or script, with an interactive flow to name and save it.
+
+### Focus & context switching
+
+Tracks how often you switch between projects and computes a focus score (0-100). Identifies deep work blocks — uninterrupted stretches on a single project — so you can see when you do your best work.
+
+```bash
+devpulse today                  # includes focus score and deep work blocks
+devpulse focus                  # detailed focus sessions for today
+devpulse focus --guard on       # enable real-time focus guard notifications
+devpulse focus --threshold 20   # notify after 20 min of continuous focus is broken
+```
+
+The focus guard runs in the daemon. When you switch projects after a sustained focus session, it notifies you with the cost: *"You were focused for 42 minutes. Context switches typically cost ~23 minutes to recover."*
+
+When you switch to a non-terminal app (Slack, Chrome, etc.), the focus guard detects the active app name via `osascript` (macOS) so the notification shows the real destination — not "unknown".
+
+### Workflow prediction
+
+DevPulse learns your per-project command sequences over time and predicts what you'll do next.
+
+```bash
+devpulse next                   # show predicted next commands for current project
+devpulse next colearn           # for a specific project
+devpulse next --run             # execute predictions immediately
+devpulse next --list            # list all learned routines
+devpulse next --dismiss 3       # stop suggesting routine #3
+```
+
+Predictions require at least 2 occurrences of a sequence. Confidence reaches 100% at 20+ repetitions.
+
+### Error memory
+
+Automatically records every failed command and links it to the commands that fixed it. Next time you hit the same error, DevPulse surfaces the fix along with a debugging tip.
+
+```bash
+devpulse recall                 # browse error history
+devpulse recall "CORS"          # search for specific error types
+devpulse recall --project myapp # filter by project
+devpulse recall --days 14       # limit to last 2 weeks
+devpulse recall --show-diff 5   # show git diff for error #5
+```
+
+Each error entry shows: how many times it occurred, when it last happened, what commands fixed it, and a **debugging tip** (heuristic or LLM-generated when a provider is configured).
+
+### Context restore
+
+Captures session snapshots when you stop working, so you can instantly re-orient when you come back.
+
+```bash
+devpulse resume                 # list all projects with their last session
+devpulse resume colearn         # show full context for a specific project
+devpulse resume --open          # resume + open last file in $EDITOR
+devpulse resume --checkout      # also git checkout the saved branch
+```
+
+Snapshots include: git branch, last file edited, last command (with error indicator if it failed), uncommitted files, session duration, and an optional LLM-generated summary.
+
+### Developer fingerprint
+
+Analyzes your historical data to build a personal productivity profile with three components:
+
+- **Energy map** — productivity by hour of day; identifies peak and low-energy hours
+- **Workflow fingerprint** — coding style (morning/evening, test-first/after, commit frequency, top tools)
+- **Focus pattern** — average deep work block duration, distractors, fragmentation trend
+
+```bash
+devpulse profile                # show cached profile (generates if none exists)
+devpulse profile --regenerate   # force fresh analysis
+devpulse profile --type energy  # show only energy map
+devpulse profile --days 30      # use 30 days of data
+```
+
+### LLM-powered insights
+
+Opt-in AI analysis that summarizes your activity into actionable productivity insights, including energy patterns, error analysis, and workflow fingerprint narrative.
+
+```bash
+devpulse insights --days 7
+```
+
+### Shell history backfill
+
+Already have months of shell history? Import it in one shot:
+
+```bash
+devpulse backfill --shell auto --limit 5000
+```
+
+Supports zsh extended history format and bash timestamped history. Project names are inferred from `cd` commands using forward/backward propagation. Also backfills git commit history from your tracked repos.
+
+### Data export
+
+```bash
+devpulse export --from 2026-04-01 --to 2026-04-30 --format json
+devpulse export --format csv --output ~/activity.csv
+```
+
+### Web dashboard
+
+A full-featured browser dashboard with no extra dependencies. See the [Web Dashboard](#web-dashboard) section below.
+
+```bash
+devpulse web
+```
+
+---
+
+## Data collectors
+
+DevPulse gathers data through four independent collectors, each toggleable in config:
+
+
+| Collector          | Event types                       | How it works                                                                                                                                                           |
+| ------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Shell**          | `shell_cmd`                       | Shell hooks call `devpulse log-cmd` on every command with cwd, exit code, duration, and session ID. Project inferred from nearest `.git` parent.                       |
+| **Git**            | `git_commit`, `git_branch_switch` | Polls registered project directories (default every 30s). Detects new commits (SHA, message, diff stats) and branch changes.                                           |
+| **File watcher**   | `file_change`                     | Uses `watchdog` to monitor config/infra files: `Dockerfile`, `docker-compose.yml`, `Makefile`, `*.tf`, `package.json`, `pyproject.toml`, lock files, and `.env` files. |
+| **Window tracker** | `window_focus`                    | Opt-in. Polls active window every 5s. macOS via `osascript`, Linux via `xdotool`. Only logs on window change.                                                          |
+
+
+---
+
+## Web dashboard
+
+A single-page dark-themed dashboard served by a stdlib-only HTTP server (no Flask/FastAPI needed).
+
+```bash
+devpulse web                    # start on port 8765, auto-opens browser
+devpulse web --port 9000        # custom port
+devpulse web --no-open          # don't auto-open browser
+```
+
+### Pages
+
+- **Dashboard** — Stat cards (active time, commands, commits, context switches, focus score), project distribution charts for today and this week, deep work blocks timeline
+- **Projects** — Time distribution doughnut, hours-per-project bar chart, detailed project table with progress bars
+- **Toil** — Total wasted time, repetition and time-wasted charts, pattern detail cards with copy-to-clipboard for `devpulse suggest`
+- **Activity** — Scrollable event feed showing commands, exit codes, projects, and timestamps
+- **Focus** — Today and weekly focus score gauges, context switch stats, deep work block list, most common project transitions
+
+Built with Tailwind CSS and Chart.js. Auto-refreshes every 30 seconds.
+
+### API endpoints
+
+
+| Endpoint                  | Description                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `GET /api/stats/today`    | Today's stats: minutes, commands, commits, switches, focus score, projects, deep work blocks |
+| `GET /api/stats/week`     | 7-day stats: hours, commits, switches/day, fragmentation, project breakdown                  |
+| `GET /api/projects`       | All projects with hours, commits, percentage share                                           |
+| `GET /api/toil`           | Top 10 toil patterns with command sequences, count, wasted hours                             |
+| `GET /api/events?limit=N` | Recent events from the last 7 days                                                           |
+| `GET /api/focus`          | Focus quality for today and week (scores, transitions, deep work blocks)                     |
+| `GET /api/status`         | Daemon state, PID, DB path, version                                                          |
+
+
+---
+
+## CLI reference
+
+### Core commands
+
+
+| Command                               | Description                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `devpulse init [--path DIR]`          | First-time setup: creates config, detects projects, initializes DB. Pass `--path` to specify where your repos live. |
+| `devpulse start`                      | Start the background collector daemon                                                                               |
+| `devpulse stop`                       | Stop the daemon                                                                                                     |
+| `devpulse status`                     | Show daemon state, commands today, most active project                                                              |
+| `devpulse today`                      | Rich terminal dashboard for today                                                                                   |
+| `devpulse week`                       | Rich terminal summary for the last 7 days                                                                           |
+| `devpulse web [--port N] [--no-open]` | Launch the web UI                                                                                                   |
+
+
+### Analysis commands
+
+
+| Command                                                             | Description                                                     |
+| ------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `devpulse toil [--days N]`                                          | List repeated command patterns (default: 14 days)               |
+| `devpulse suggest [id]`                                             | Generate an automation script for a toil pattern (requires LLM) |
+| `devpulse insights [--days N]`                                      | LLM-powered productivity insights (default: 7 days)             |
+| `devpulse next [project] [--run] [--list] [--dismiss ID]`           | Show/run predicted next actions                                 |
+| `devpulse recall [query] [--project P] [--days N] [--show-diff ID]` | Search error memory and past fixes                              |
+| `devpulse resume [project] [--open] [--checkout] [--json]`          | Restore session context for a project                           |
+| `devpulse profile [--regenerate] [--type T] [--days N] [--json]`    | Show developer fingerprint                                      |
+| `devpulse focus [--guard on|off] [--threshold N]`                   | Show focus sessions, configure focus guard                      |
+
+
+### Data commands
+
+
+| Command                                                                         | Description                          |
+| ------------------------------------------------------------------------------- | ------------------------------------ |
+| `devpulse backfill [--shell auto|zsh|bash] [--limit N] [--no-git]`              | Import shell history and git commits |
+| `devpulse export [--from DATE] [--to DATE] [--format json|csv] [--output PATH]` | Export events                        |
+| `devpulse reset [--keep-config]`                                                | Delete all collected data            |
+
+
+### Config commands
+
+
+| Command                             | Description                                     |
+| ----------------------------------- | ----------------------------------------------- |
+| `devpulse config`                   | Print current configuration                     |
+| `devpulse config set <key> <value>` | Set a config value (e.g. `llm.provider ollama`) |
+| `devpulse config providers`         | Test all LLM providers and show availability    |
+
+
+### Project commands
+
+
+| Command                           | Description                                         |
+| --------------------------------- | --------------------------------------------------- |
+| `devpulse projects`               | List all discovered repos with 7-day activity stats |
+| `devpulse projects add <path>`    | Add a project directory to track                    |
+| `devpulse projects remove <name>` | Stop tracking a project                             |
+
+
+---
+
+## LLM providers
+
+DevPulse works fully without an LLM — time tracking, toil detection, dashboards, focus scoring, workflow prediction, error memory, and the web UI all work offline. LLM is only used for `devpulse suggest`, `devpulse insights`, and optional summaries in `devpulse resume` and `devpulse profile`.
+
+
+| Provider   | Model                    | Cost        | Privacy | Setup                                     |
+| ---------- | ------------------------ | ----------- | ------- | ----------------------------------------- |
+| **Ollama** | llama3.2:3b (local)      | Free        | Local   | `devpulse config set llm.provider ollama` |
+| **Groq**   | llama-3.1-70b            | Free tier   | Cloud   | `devpulse config set llm.provider groq`   |
+| **Claude** | claude-sonnet-4-20250514 | ~$0.008/req | Cloud   | `devpulse config set llm.provider claude` |
+| **OpenAI** | gpt-4o-mini              | ~$0.004/req | Cloud   | `devpulse config set llm.provider openai` |
+| **None**   | —                        | —           | —       | `devpulse config set llm.provider none`   |
+
+
+### Ollama (recommended — free & local)
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.1
+ollama pull llama3.2:3b
 devpulse config set llm.provider ollama
 ```
 
-### Cheap option — Groq (free tier)
+### Groq (free tier)
 
 ```bash
-# Get API key from console.groq.com
 devpulse config set llm.provider groq
-devpulse config set llm.groq.api_key gsk_xxxxx
+devpulse config set llm.groq.api_key gsk_xxxxx    # from console.groq.com
 ```
 
-### Premium — Claude
+### Claude
 
 ```bash
 devpulse config set llm.provider claude
-# Uses ANTHROPIC_API_KEY env var, or:
-devpulse config set llm.claude.api_key sk-ant-xxxxx
+devpulse config set llm.claude.api_key sk-ant-xxxxx    # or set ANTHROPIC_API_KEY
 ```
 
-### Premium — OpenAI
+### OpenAI
 
 ```bash
 devpulse config set llm.provider openai
-devpulse config set llm.openai.api_key sk-xxxxx
+devpulse config set llm.openai.api_key sk-xxxxx    # or set OPENAI_API_KEY
 ```
 
-### No LLM at all
-
-```bash
-devpulse config set llm.provider none
-```
-
-### Test all providers
+### Verify providers
 
 ```bash
 devpulse config providers
-# ✅ Ollama     llama3.1              (local, free)
-# ✅ Groq       llama-3.1-70b         (cloud, free tier)
-# ❌ Claude     not configured
-# ❌ OpenAI     not configured
-# Active: ollama
 ```
 
 ---
 
-## LLM provider comparison
-
-| Provider | Cost per `suggest` | Cost per `insights` | Monthly est. | Privacy |
-|----------|-------------------|---------------------|--------------|---------|
-| Ollama   | $0 (local)        | $0 (local)          | $0           | 🔒 Local |
-| Groq     | ~$0.001           | ~$0.003             | ~$0.12       | Cloud   |
-| Claude   | ~$0.008           | ~$0.02              | ~$0.84       | Cloud   |
-| OpenAI   | ~$0.004           | ~$0.01              | ~$0.42       | Cloud   |
-
----
-
-## CLI commands
-
-```
-devpulse init                       First-time setup
-devpulse start                      Start background daemon
-devpulse stop                       Stop daemon
-devpulse status                     Show daemon + today stats
-devpulse today                      Today's activity dashboard
-devpulse week                       Weekly summary with trends
-devpulse toil [--days N]            List detected toil patterns
-devpulse suggest [id]               Generate automation for a toil pattern
-devpulse insights [--days N]        LLM-powered productivity insights
-devpulse backfill [--shell auto]    Import shell history as one-time backfill
-devpulse config                     Show current config
-devpulse config set key value       Update a config value
-devpulse config providers           Test all LLM providers
-devpulse projects                   List tracked projects with stats
-devpulse projects add <path>        Track a new project
-devpulse projects remove <name>     Stop tracking a project
-devpulse export [--from] [--to]     Export data as JSON or CSV
-devpulse reset [--keep-config]      Delete all data
-```
-
-### Examples
-
-```bash
-# Check today's activity
-devpulse today
-
-# Find what you're wasting time on
-devpulse toil --days 14
-
-# Generate a shell alias for your top toil pattern
-devpulse suggest 1
-
-# Get weekly AI insights
-devpulse insights
-
-# Export last month's data
-devpulse export --from 2026-04-01 --to 2026-04-30 --format json
-
-# Change LLM provider
-devpulse config set llm.provider groq
-```
-
----
-
-## Configuration reference
+## Configuration
 
 Config file: `~/.devpulse/config.toml`
 
 ```toml
 [general]
-data_retention_days = 90       # Auto-delete events older than N days
-toil_threshold = 5             # Min repetitions to flag a pattern
-idle_timeout_minutes = 15      # Gap before assuming you went idle
-poll_interval_seconds = 30     # Git/window polling interval
+data_retention_days = 90        # Auto-delete events older than N days
+toil_threshold = 5              # Min repetitions to flag a pattern
+idle_timeout_minutes = 15       # Gap before counting as idle
+poll_interval_seconds = 30      # Git/window polling interval
 
 [projects]
-paths = ["~/work/myproject"]   # Paths to watch (auto-detected from git repos)
+paths = ["~/work/myproject"]    # Auto-detected from git repos
 
 [llm]
-provider = "ollama"            # "claude", "openai", "ollama", "groq", "none"
+provider = "ollama"             # "ollama", "groq", "claude", "openai", "none"
 
 [llm.ollama]
 host = "http://localhost:11434"
-model = "llama3.1"
+model = "llama3.2:3b"
 
 [llm.groq]
-api_key = ""                   # or GROQ_API_KEY env var
+api_key = ""                    # or GROQ_API_KEY env var
 
 [llm.claude]
-api_key = ""                   # or ANTHROPIC_API_KEY env var
+api_key = ""                    # or ANTHROPIC_API_KEY env var
 model = "claude-sonnet-4-20250514"
 
 [llm.openai]
-api_key = ""                   # or OPENAI_API_KEY env var
+api_key = ""                    # or OPENAI_API_KEY env var
 model = "gpt-4o-mini"
+base_url = ""                   # for OpenAI-compatible APIs
 
 [collectors]
 shell = true
 git = true
 file_watcher = true
-window_tracker = false         # opt-in, needs platform deps
+window_tracker = false          # opt-in, macOS/Linux X11 only
 
 [ui]
 color_theme = "auto"
+
+[v2]
+# Workflow prediction
+prediction_confidence_threshold = 0.3   # minimum confidence to show a prediction
+prediction_learning_days = 30           # days of history to learn from
+auto_execute_predictions = false        # if true, 'devpulse next --run' skips confirmation
+
+# Error memory
+error_retention_days = 180             # how long to keep error records
+auto_record_errors = true              # automatically record non-zero exit codes
+error_similarity_threshold = 0.8       # fuzzy match threshold (reserved)
+
+# Focus guard
+focus_guard_enabled = true
+focus_threshold_minutes = 15           # minimum minutes before counting as focus session
+focus_notification_method = "terminal" # "terminal", "desktop", "both", "none"
+focus_cooldown_minutes = 5             # don't notify again within this window
+
+# Context restorer
+session_gap_minutes = 30               # inactivity gap that ends a session
+auto_snapshot = true                   # auto-capture snapshots on session end
+
+# Developer profile
+profile_auto_generate = true           # regenerate profile weekly
+profile_days = 30                      # days of data to analyze
 ```
 
 ---
@@ -267,41 +535,105 @@ color_theme = "auto"
 
 DevPulse is designed to be privacy-first:
 
-- **All data stays local** — stored in `~/.devpulse/devpulse.db` (SQLite)
+- **All data stays local** — stored in `~/.devpulse/devpulse.db` (SQLite with WAL mode)
 - **No telemetry** — zero network calls by the core tool
-- **LLM is opt-in** — all analysis works without it; only `suggest` and `insights` use it
+- **LLM is opt-in** — all analysis works without it; only `suggest` and `insights` use LLM
 - **You choose the provider** — use Ollama for 100% local inference
 - **Data retention** — old events auto-deleted after 90 days (configurable)
-- **Export and reset** — you own your data; export or delete at any time
+- **Full data ownership** — export or delete everything at any time with `devpulse export` / `devpulse reset`
 
 ---
 
 ## Platform support
 
-| Platform | Shell hooks | Git collector | File watcher | Window tracker |
-|----------|------------|---------------|--------------|----------------|
-| macOS    | zsh, bash  | ✅            | ✅           | ✅ (osascript) |
-| Linux    | zsh, bash  | ✅            | ✅           | X11 only       |
-| WSL      | zsh, bash  | ✅            | ✅           | ❌             |
-| Windows  | ❌ use WSL  | —             | —            | —              |
+
+| Platform | Shell hooks | Git collector | File watcher | Window tracker     |
+| -------- | ----------- | ------------- | ------------ | ------------------ |
+| macOS    | zsh, bash   | Yes           | Yes          | Yes (osascript)    |
+| Linux    | zsh, bash   | Yes           | Yes          | X11 only (xdotool) |
+| WSL      | zsh, bash   | Yes           | Yes          | No                 |
+| Windows  | Use WSL     | —             | —            | —                  |
+
+
+---
+
+## Architecture
+
+```
+~/.devpulse/
+├── config.toml          # User configuration
+├── devpulse.db          # SQLite database (WAL mode)
+└── scripts/             # Generated automation scripts
+
+devpulse/
+├── cli.py               # Typer CLI entry point
+├── config.py            # Config management with auto-detection
+├── db.py                # SQLite with thread-safe writes
+├── daemon.py            # Background daemon (double-fork)
+├── collectors/
+│   ├── shell.py         # Shell command logging + history backfill
+│   ├── git_collector.py # Git commit/branch polling + history backfill
+│   ├── file_watcher.py  # Config/infra file change detection
+│   └── window.py        # Active window tracking (opt-in)
+├── analyzers/
+│   ├── time_tracker.py  # Per-project time estimation
+│   ├── context_switch.py# Focus scoring + deep work blocks
+│   ├── toil.py          # Repeated pattern detection
+│   ├── workflow_predictor.py  # Command sequence learning + prediction
+│   ├── error_memory.py        # Failed command tracking + fix linking
+│   ├── context_restorer.py    # Session snapshot + resume
+│   ├── developer_fingerprint.py # Energy map, style, focus profiling
+│   └── focus_guard.py          # Real-time focus session monitoring
+├── generators/
+│   ├── script_gen.py    # LLM-powered automation scripts
+│   └── report_gen.py    # LLM-powered insights + daily summaries
+├── llm/
+│   ├── base.py          # Provider interface
+│   ├── factory.py       # Auto-detection + instantiation
+│   ├── ollama.py        # Ollama (local)
+│   ├── groq.py          # Groq (cloud, free tier)
+│   ├── claude.py        # Claude (cloud)
+│   └── openai.py        # OpenAI (cloud)
+├── ui/
+│   └── dashboard.py     # Rich terminal dashboards
+└── web/
+    ├── server.py        # Stdlib HTTP server + API
+    └── static/
+        └── index.html   # SPA dashboard (Tailwind + Chart.js)
+```
 
 ---
 
 ## Development
 
 ```bash
-git clone https://github.com/you/devpulse
+git clone https://github.com/sarathms/devpulse.git
 cd devpulse
 pip install -e ".[all,dev]"
 make test
 ```
 
+### Makefile targets
+
+
+| Target          | Description                                  |
+| --------------- | -------------------------------------------- |
+| `make install`  | Editable install (core deps only)            |
+| `make dev`      | Install with all optional + dev dependencies |
+| `make test`     | Run pytest                                   |
+| `make test-cov` | Run tests with coverage report               |
+| `make lint`     | Compile-check all Python files               |
+| `make clean`    | Remove build artifacts                       |
+
+
+### Running tests
+
 ```bash
-make dev        # install with all optional deps
-make test       # run pytest
-make test-cov   # run with coverage report
-make clean      # remove build artifacts
+make test               # quick run
+make test-cov           # with coverage
 ```
+
+Tests cover the database layer, all collectors, all analyzers, and the LLM provider abstraction. All tests use temporary directories for full isolation.
 
 ---
 
@@ -314,3 +646,9 @@ make clean      # remove build artifacts
 5. Open a pull request
 
 Please keep the core (`pip install devpulse`) dependency-free from paid LLM providers.
+
+---
+
+## License
+
+[MIT](LICENSE)

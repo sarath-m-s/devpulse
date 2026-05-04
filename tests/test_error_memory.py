@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from devpulse import db
-from devpulse.analyzers.error_memory import ErrorMemory, _error_hash, _classify_error_type
+from ghost_pulse import db
+from ghost_pulse.analyzers.error_memory import ErrorMemory, _error_hash, _classify_error_type
 
 
 @pytest.fixture(autouse=True)

@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ghost Pulse — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --canvas:          #010102;
+      --surface-1:       #0d0e11;
+      --surface-2:       #141519;
+      --surface-3:       #1b1c21;
+      --surface-4:       #22232a;
+      --hairline:        #23252a;
+      --hairline-strong: #2e3038;
+      --primary:         #5e6ad2;
+      --primary-hover:   #828fff;
+      --ink:             #f7f8f8;
+      --ink-muted:       #d0d6e0;
+      --ink-subtle:      #8a8f98;
+      --ink-tertiary:    #62666d;
+      --success:         #27a644;
+      --warn:            #d97706;
+      --danger:          #e87b5a;
+      --font: 'Inter', -apple-system, system-ui, sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, monospace;
+      --r-xs:4px; --r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:16px; --r-pill:9999px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body { background: var(--canvas); color: var(--ink); font-family: var(--font); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; }
+
+    /* ── Topbar ── */
+    .topbar { height: 48px; background: var(--surface-1); border-bottom: 1px solid var(--hairline); display: flex; align-items: center; padding: 0 20px; gap: 16px; flex-shrink: 0; z-index: 50; }
+    .topbar-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
+    .logo-mark { width: 22px; height: 22px; background: var(--primary); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+    .topbar-name { font-size: 14px; font-weight: 600; letter-spacing: -0.3px; }
+    .topbar-sep { width: 1px; height: 18px; background: var(--hairline-strong); }
+    .topbar-addr { font-family: var(--mono); font-size: 11px; color: var(--ink-tertiary); background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 3px 8px; }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .status-pill { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--success); background: rgba(39,166,68,0.1); border: 1px solid rgba(39,166,68,0.2); border-radius: var(--r-pill); padding: 3px 10px; }
+    .status-pill.stopped { color: var(--danger); background: rgba(232,123,90,0.1); border-color: rgba(232,123,90,0.2); }
+    .status-dot { width: 6px; height: 6px; background: var(--success); border-radius: 50%; animation: pulse 2s ease-in-out infinite; }
+    .status-pill.stopped .status-dot { background: var(--danger); animation: none; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+    .topbar-date { font-size: 12px; color: var(--ink-tertiary); }
+
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar { width: 200px; flex-shrink: 0; background: var(--surface-1); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; overflow-y: auto; padding: 12px 8px; gap: 2px; }
+    .nav-label { font-size: 10px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--ink-tertiary); padding: 8px 8px 4px; }
+    .nav-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-md); color: var(--ink-subtle); font-size: 13px; font-weight: 400; cursor: pointer; transition: background 0.12s, color 0.12s; user-select: none; text-decoration: none; }
+    .nav-item:hover { background: var(--surface-2); color: var(--ink-muted); }
+    .nav-item.active { background: var(--surface-3); color: var(--ink); }
+    .nav-item svg { flex-shrink: 0; opacity: 0.7; }
+    .nav-item.active svg { opacity: 1; }
+    .nav-item .badge { margin-left: auto; font-size: 10px; font-weight: 600; background: var(--primary); color: #fff; border-radius: var(--r-pill); padding: 1px 6px; }
+
+    /* ── Main ── */
+    .main { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── View containers ── */
+    .view { display: none; flex-direction: column; gap: 16px; }
+    .view.active { display: flex; animation: fadeUp 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+    /* ── Page header ── */
+    .page-header { display: flex; align-items: flex-start; justify-content: space-between; }
+    .page-title { font-size: 18px; font-weight: 600; letter-spacing: -0.4px; color: var(--ink); }
+    .page-sub { font-size: 13px; color: var(--ink-subtle); margin-top: 2px; }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+
+    /* ── Buttons ── */
+    .btn { font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: var(--r-md); cursor: pointer; border: 1px solid var(--hairline); background: var(--surface-2); color: var(--ink-muted); transition: background 0.12s, border-color 0.12s; display: flex; align-items: center; gap: 6px; font-family: var(--font); }
+    .btn:hover { background: var(--surface-3); border-color: var(--hairline-strong); color: var(--ink); }
+    .btn-accent { background: var(--primary); color: #fff; border-color: transparent; }
+    .btn-accent:hover { background: var(--primary-hover); color: #fff; }
+
+    /* ── Stat cards ── */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .stats-row-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .stat-card { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); padding: 14px 16px; position: relative; overflow: hidden; transition: border-color 0.2s; }
+    .stat-card:hover { border-color: var(--hairline-strong); }
+    .stat-label { font-size: 11px; font-weight: 500; color: var(--ink-subtle); letter-spacing: 0.2px; margin-bottom: 6px; }
+    .stat-value { font-size: 24px; font-weight: 600; letter-spacing: -0.8px; color: var(--ink); line-height: 1; margin-bottom: 4px; }
+    .stat-delta { font-size: 11px; color: var(--ink-tertiary); }
+    .stat-delta.up { color: var(--success); }
+    .stat-delta.down { color: var(--danger); }
+    .stat-accent-bar { position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--primary); opacity: 0.5; }
+
+    /* ── Grids ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* ── Panel ── */
+    .panel { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden; }
+    .panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+    .panel-title { font-size: 13px; font-weight: 600; letter-spacing: -0.2px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+    .panel-action { font-size: 11px; color: var(--primary); cursor: pointer; transition: color 0.12s; }
+    .panel-action:hover { color: var(--primary-hover); }
+    .panel-body { padding: 16px; }
+    .panel-body-sm { padding: 12px 16px; }
+
+    /* ── Tags ── */
+    .tag { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: var(--r-pill); }
+    .tag-success { background: rgba(39,166,68,0.1); color: var(--success); border: 1px solid rgba(39,166,68,0.2); }
+    .tag-warn    { background: rgba(217,119,6,0.1);  color: var(--warn);    border: 1px solid rgba(217,119,6,0.2); }
+    .tag-danger  { background: rgba(232,123,90,0.1); color: var(--danger);  border: 1px solid rgba(232,123,90,0.2); }
+    .tag-primary { background: rgba(94,106,210,0.1); color: var(--primary); border: 1px solid rgba(94,106,210,0.2); }
+    .tag-muted   { background: var(--surface-3); color: var(--ink-subtle); border: 1px solid var(--hairline); }
+
+    /* ── Bar chart ── */
+    .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+    .bar-row { display: grid; grid-template-columns: 100px 1fr 52px; align-items: center; gap: 10px; }
+    .bar-label { font-size: 12px; font-weight: 500; color: var(--ink-muted); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bar-track { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
+    .bar-val { font-size: 12px; color: var(--ink-subtle); text-align: right; font-family: var(--mono); }
+
+    /* ── Timeline ── */
+    .timeline { display: flex; flex-direction: column; gap: 6px; }
+    .timeline-hours { display: flex; margin-bottom: 4px; }
+    .hour-label { flex: 1; font-size: 10px; color: var(--ink-tertiary); font-family: var(--mono); text-align: center; }
+    .timeline-row { display: flex; align-items: center; gap: 8px; }
+    .timeline-proj { width: 84px; font-size: 11px; font-family: var(--mono); color: var(--ink-subtle); flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .timeline-blocks { flex: 1; display: flex; height: 18px; gap: 1px; }
+    .tblock { height: 100%; border-radius: 2px; flex-shrink: 0; }
+
+    /* ── Context switch chart ── */
+    .switch-chart { display: flex; align-items: flex-end; gap: 3px; height: 56px; }
+    .switch-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; height: 100%; justify-content: flex-end; }
+    .switch-bar { width: 100%; border-radius: 2px 2px 0 0; min-height: 2px; }
+    .switch-bar.high { background: var(--danger); }
+    .switch-bar.med  { background: var(--warn); opacity: 0.8; }
+    .switch-bar.low  { background: var(--success); opacity: 0.8; }
+    .switch-bar.none { background: var(--surface-3); }
+    .switch-day { font-size: 9px; color: var(--ink-tertiary); font-family: var(--mono); }
+
+    /* ── Toil ── */
+    .toil-list { display: flex; flex-direction: column; }
+    .toil-item { padding: 12px 0; border-bottom: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 6px; }
+    .toil-item:last-child { border-bottom: none; }
+    .toil-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .toil-cmd { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-xs); padding: 3px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .toil-freq { font-size: 11px; font-family: var(--mono); color: var(--ink-tertiary); flex-shrink: 0; }
+    .toil-body { display: flex; align-items: center; gap: 8px; }
+    .toil-suggest { font-size: 11px; color: var(--success); font-family: var(--mono); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .toil-apply { flex-shrink: 0; font-size: 11px; font-weight: 500; color: var(--primary); cursor: pointer; padding: 3px 10px; border-radius: var(--r-sm); border: 1px solid rgba(94,106,210,0.3); background: rgba(94,106,210,0.06); transition: background 0.12s, border-color 0.12s; font-family: var(--font); }
+    .toil-apply:hover:not(:disabled) { background: rgba(94,106,210,0.14); border-color: var(--primary); }
+    .toil-apply:disabled { opacity: 0.6; cursor: default; }
+    .toil-meta { font-size: 11px; color: var(--ink-tertiary); }
+
+    /* ── Activity ── */
+    .activity-list { display: flex; flex-direction: column; }
+    .activity-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--hairline); }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-time { font-family: var(--mono); font-size: 10px; color: var(--ink-tertiary); width: 44px; flex-shrink: 0; }
+    .activity-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .activity-text { font-size: 12px; color: var(--ink-subtle); flex: 1; }
+    .activity-text code { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); background: var(--surface-3); border-radius: 3px; padding: 0 4px; }
+    .activity-proj { font-family: var(--mono); font-size: 10px; color: var(--ink-tertiary); background: var(--surface-3); border-radius: var(--r-xs); padding: 1px 6px; flex-shrink: 0; }
+
+    /* ── Week grid ── */
+    .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .week-day { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .week-bar-wrap { width: 100%; height: 40px; display: flex; align-items: flex-end; }
+    .week-bar { width: 100%; border-radius: 2px 2px 0 0; min-height: 3px; }
+    .week-bar.today { background: var(--primary); opacity: 0.8; }
+    .week-bar.past  { background: var(--surface-4); }
+    .week-label { font-size: 9px; color: var(--ink-tertiary); font-family: var(--mono); }
+    .week-hours { font-size: 9px; color: var(--ink-subtle); font-family: var(--mono); }
+
+    /* ── Donut ── */
+    .donut-wrap { display: flex; align-items: center; gap: 16px; }
+    .donut-legend { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-muted); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+    .legend-pct { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-subtle); }
+
+    /* ── Insights ── */
+    .insights-list { display: flex; flex-direction: column; gap: 8px; }
+    .insight-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-md); }
+    .insight-icon { width: 28px; height: 28px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .insight-text { font-size: 12px; color: var(--ink-muted); line-height: 1.6; }
+    .insight-text strong { color: var(--ink); font-weight: 500; }
+
+    /* ── Projects table ── */
+    .proj-table { width: 100%; border-collapse: collapse; }
+    .proj-table th { font-size: 10px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; color: var(--ink-tertiary); padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--hairline); }
+    .proj-table td { padding: 10px 12px; border-bottom: 1px solid var(--hairline); font-size: 12px; color: var(--ink-muted); vertical-align: middle; }
+    .proj-table tr:last-child td { border-bottom: none; }
+    .proj-table tr:hover td { background: var(--surface-2); }
+    .proj-name { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink); }
+    .proj-mini-bar { height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; margin-top: 3px; }
+    .proj-mini-fill { height: 100%; border-radius: 2px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
+
+    /* ── Config ── */
+    .config-section { display: flex; flex-direction: column; gap: 2px; }
+    .config-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }
+    .config-row:last-child { border-bottom: none; }
+    .config-key { font-size: 13px; color: var(--ink); font-weight: 500; }
+    .config-desc { font-size: 11px; color: var(--ink-tertiary); margin-top: 2px; }
+    .config-val { font-family: var(--mono); font-size: 12px; color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 10px; }
+    .config-select { font-family: var(--mono); font-size: 12px; color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 4px 10px; cursor: pointer; appearance: none; }
+    .toggle { width: 32px; height: 18px; border-radius: var(--r-pill); background: var(--surface-3); border: 1px solid var(--hairline); cursor: pointer; position: relative; transition: background 0.15s; flex-shrink: 0; }
+    .toggle.on { background: var(--primary); border-color: var(--primary); }
+    .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--ink-subtle); transition: transform 0.15s, background 0.15s; }
+    .toggle.on::after { transform: translateX(14px); background: #fff; }
+
+    /* ── Focus heatmap ── */
+    .heatmap-grid { display: grid; grid-template-columns: 40px repeat(10, 1fr); gap: 2px; }
+    .heatmap-cell { height: 20px; border-radius: 2px; }
+    .heatmap-label { font-size: 10px; color: var(--ink-tertiary); font-family: var(--mono); display: flex; align-items: center; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--surface-4); }
+
+    .loading { color: var(--ink-tertiary); font-size: 12px; padding: 16px 0; }
+    .empty { color: var(--ink-tertiary); font-size: 12px; padding: 8px 0; font-style: italic; }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <a href="#" class="topbar-logo">
+    <div class="logo-mark">
+      <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+        <path d="M2 7C2 4.24 4.24 2 7 2s5 2.24 5 5-2.24 5-5 5-5-2.24-5-5z" stroke="#fff" stroke-width="1.4" fill="none"/>
+        <path d="M7 4v3l2 1.5" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <span class="topbar-name">Ghost Pulse</span>
+  </a>
+  <div class="topbar-sep"></div>
+  <span class="topbar-addr" id="topbar-addr">localhost:8765</span>
+  <div class="topbar-right">
+    <div class="status-pill" id="daemon-pill"><span class="status-dot"></span><span id="daemon-label">checking…</span></div>
+    <span class="topbar-date" id="topbar-date"></span>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <span class="nav-label">Overview</span>
+    <a class="nav-item active" data-view="today" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.3"/><path d="M7 4.5V7l1.5 1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Today
+    </a>
+    <a class="nav-item" data-view="week" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="3" width="11" height="9" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 1.5v3M9 1.5v3M1.5 6.5h11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      This week
+    </a>
+    <a class="nav-item" data-view="projects" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5V5l4-3 4 3v5.5" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><rect x="5" y="7.5" width="4" height="3" rx="0.5" stroke="currentColor" stroke-width="1.3"/></svg>
+      Projects
+    </a>
+    <span class="nav-label" style="margin-top:8px">Analysis</span>
+    <a class="nav-item" data-view="toil" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v2M7 10v2M2 7H4M10 7h2M3.64 3.64l1.42 1.42M8.94 8.94l1.42 1.42M3.64 10.36l1.42-1.42M8.94 5.06l1.42-1.42" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Toil
+      <span class="badge" id="toil-badge">…</span>
+    </a>
+    <a class="nav-item" data-view="fixes" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 11l-2 2v-3h2.5M11 3l2-2v3h-2.5M4 4l7 7M7 4l3 3M4 7l3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Fix KB
+      <span class="badge" id="fix-open-badge" style="opacity:0.45">0</span>
+    </a>
+    <a class="nav-item" data-view="focus" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h1.5M10.5 7H12M7 2v1.5M7 10.5V12M4.4 4.4l1.05 1.05M8.55 8.55l1.05 1.05M8.55 5.45 7.5 6.5M4.4 9.6l1.05-1.05" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+      Focus
+    </a>
+    <a class="nav-item" data-view="insights" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5l3-4 2.5 2 3-5L12 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Insights
+    </a>
+    <span class="nav-label" style="margin-top:8px">Settings</span>
+    <a class="nav-item" data-view="config" href="#">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="1.8" stroke="currentColor" stroke-width="1.3"/><path d="M7 1.5v1.2M7 11.3v1.2M1.5 7h1.2M11.3 7h1.2M3.2 3.2l.85.85M9.95 9.95l.85.85M3.2 10.8l.85-.85M9.95 4.05l.85-.85" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Config
+    </a>
+  </nav>
+
+  <main class="main" id="main">
+
+    <!-- TODAY -->
+    <div class="view active" id="view-today">
+      <div class="page-header">
+        <div><div class="page-title">Today's Pulse</div><div class="page-sub" id="today-sub">Loading…</div></div>
+        <div class="header-actions">
+          <button class="btn" id="refresh-btn">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M10.5 2A5 5 0 1 0 11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M9 2h1.5V3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Total dev time</div><div class="stat-value" id="t-time">—</div><div class="stat-delta" id="t-time-delta">—</div></div>
+        <div class="stat-card"><div class="stat-label">Commits</div><div class="stat-value" id="t-commits">—</div><div class="stat-delta" id="t-commits-delta">—</div></div>
+        <div class="stat-card"><div class="stat-label">Context switches</div><div class="stat-value" id="t-switches">—</div><div class="stat-delta">today</div></div>
+        <div class="stat-card"><div class="stat-label">Longest focus block</div><div class="stat-value" id="t-focus">—</div><div class="stat-delta" id="t-focus-delta">—</div></div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="var(--ink-subtle)" stroke-width="1.2"/><path d="M6.5 3.5v3l2 1.2" stroke="var(--ink-subtle)" stroke-width="1.2" stroke-linecap="round"/></svg>Time by project</span>
+            <span class="tag tag-muted">Today</span>
+          </div>
+          <div class="panel-body">
+            <div class="bar-chart" id="today-project-bars"><div class="loading">Loading…</div></div>
+            <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--hairline)">
+              <div class="donut-wrap">
+                <svg width="72" height="72" viewBox="0 0 72 72" id="donut-today"></svg>
+                <div class="donut-legend" id="donut-today-legend"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 9.5l2.5-3.5L7 8l2.5-4L12 6" stroke="var(--ink-subtle)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Focus timeline</span>
+            <span class="tag tag-muted" id="today-switch-tag">— switches</span>
+          </div>
+          <div class="panel-body">
+            <div class="timeline">
+              <div class="timeline-hours" id="hour-labels"></div>
+              <div id="today-timeline-rows"><div class="loading">Loading…</div></div>
+            </div>
+            <div id="today-timeline-legend" style="margin-top:10px;font-size:11px;color:var(--ink-tertiary);display:flex;gap:12px;flex-wrap:wrap"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2v1.5M6.5 9.5V11M2 6.5h1.5M9.5 6.5H11M3.3 3.3l1.05 1.05M8.65 8.65l1.05 1.05M3.3 9.7l1.05-1.05M8.65 4.35l1.05-1.05" stroke="var(--ink-subtle)" stroke-width="1.2" stroke-linecap="round"/><circle cx="6.5" cy="6.5" r="2" stroke="var(--ink-subtle)" stroke-width="1.2"/></svg>Toil detected</span>
+            <span class="tag tag-warn" id="toil-today-tag">—</span>
+          </div>
+          <div class="panel-body-sm"><div class="toil-list" id="toil-list-today"><div class="loading">Loading…</div></div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4h9M2 6.5h6M2 9h4" stroke="var(--ink-subtle)" stroke-width="1.2" stroke-linecap="round"/></svg>Recent activity</span>
+          </div>
+          <div class="panel-body-sm"><div class="activity-list" id="activity-list"><div class="loading">Loading…</div></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="3" width="4.5" height="4" rx="1" stroke="var(--ink-subtle)" stroke-width="1.2"/><rect x="7" y="6" width="4.5" height="4" rx="1" stroke="var(--ink-subtle)" stroke-width="1.2"/><path d="M8 5H10.5V7" stroke="var(--ink-subtle)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 8H2.5V6" stroke="var(--ink-subtle)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Context switches — past 7 days</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink-tertiary)"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--danger)"></span>High (&gt;20)</span>
+            <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink-tertiary)"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--warn)"></span>Med</span>
+            <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink-tertiary)"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--success)"></span>Low (&lt;10)</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="switch-chart" id="switch-chart-today"></div>
+          <div style="margin-top:8px;font-size:11px;color:var(--ink-tertiary)">Target: under 15 context switches/day for sustained deep work</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WEEK -->
+    <div class="view" id="view-week">
+      <div class="page-header">
+        <div><div class="page-title">This Week</div><div class="page-sub" id="week-sub">—</div></div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Total this week</div><div class="stat-value" id="w-time">—</div><div class="stat-delta" id="w-time-delta">—</div></div>
+        <div class="stat-card"><div class="stat-label">Commits</div><div class="stat-value" id="w-commits">—</div><div class="stat-delta" id="w-commits-delta">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg focus block</div><div class="stat-value" id="w-focus">—</div><div class="stat-delta">this week</div></div>
+        <div class="stat-card"><div class="stat-label">Best day</div><div class="stat-value" id="w-bestday" style="color:var(--success)">—</div><div class="stat-delta" id="w-bestday-delta">—</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Daily hours</span><span class="tag tag-muted">Mon–Sun</span></div>
+          <div class="panel-body">
+            <div class="switch-chart" id="week-hours-chart" style="height:80px"></div>
+            <div style="margin-top:10px"><div class="bar-chart" id="week-project-bars"></div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Weekly breakdown</span></div>
+          <div class="panel-body">
+            <div id="week-grid-full" class="week-grid" style="gap:6px"></div>
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--hairline)">
+              <div style="font-size:11px;color:var(--ink-tertiary);margin-bottom:8px">Time by project this week</div>
+              <div style="display:flex;flex-direction:column;gap:6px" id="week-proj-dist"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Context switches — this week</span><span class="tag tag-warn" id="week-switch-tag">Avg —/day</span></div>
+        <div class="panel-body">
+          <div class="switch-chart" id="switch-chart-week" style="height:70px"></div>
+          <div style="margin-top:8px;font-size:11px;color:var(--ink-tertiary)" id="week-switch-note">—</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Activity log — this week</span></div>
+        <div class="panel-body-sm"><div class="activity-list" id="week-activity"><div class="loading">Loading…</div></div></div>
+      </div>
+    </div>
+
+    <!-- PROJECTS -->
+    <div class="view" id="view-projects">
+      <div class="page-header">
+        <div><div class="page-title">Projects</div><div class="page-sub" id="projects-sub">Loading…</div></div>
+      </div>
+      <div class="stats-row-3" id="proj-stat-cards"></div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">All projects breakdown</span></div>
+        <div class="panel-body" style="padding:0"><table class="proj-table" id="proj-table"></table></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Project time share — this week</span></div>
+          <div class="panel-body">
+            <div class="donut-wrap">
+              <svg width="80" height="80" viewBox="0 0 80 80" id="donut-projects"></svg>
+              <div class="donut-legend" id="proj-donut-legend"></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Most active branches</span></div>
+          <div class="panel-body-sm"><div class="activity-list" id="branch-list"><div class="loading">Loading…</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOIL -->
+    <div class="view" id="view-toil">
+      <div class="page-header">
+        <div><div class="page-title">Toil Detector</div><div class="page-sub">Repetitive command sequences detected in your shell history</div></div>
+        <div class="header-actions">
+          <button class="btn btn-accent" id="apply-all-btn">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Apply all
+          </button>
+        </div>
+      </div>
+      <div class="stats-row-3">
+        <div class="stat-card"><div class="stat-label">Patterns found</div><div class="stat-value" id="toil-count" style="color:var(--warn)">—</div><div class="stat-delta">detected</div></div>
+        <div class="stat-card"><div class="stat-label">Total repetitions</div><div class="stat-value" id="toil-reps">—</div><div class="stat-delta">all patterns</div></div>
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Est. time wasted</div><div class="stat-value" id="toil-wasted" style="color:var(--danger)">—</div><div class="stat-delta">if not automated</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Detected patterns</span><span class="tag tag-warn" id="toil-count-tag">—</span></div>
+        <div class="panel-body-sm"><div class="toil-list" id="toil-list-full"><div class="loading">Loading…</div></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Applied automations</span><span class="tag tag-success" id="applied-count-tag">0 applied</span></div>
+        <div class="panel-body-sm"><div id="applied-list" style="font-size:12px;color:var(--ink-tertiary);padding:8px 0" data-placeholder="1">No automations applied yet.</div></div>
+      </div>
+    </div>
+
+    <!-- FIX KB -->
+    <div class="view" id="view-fixes">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Error fix knowledge</div>
+          <div class="page-sub">Learned fixes from your shell — match failing commands to what worked before</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn" id="fix-refresh-btn">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M10.5 2A5 5 0 1 0 11 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M9 2h1.5V3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Embedding backend</div><div class="stat-value" id="fix-embed-name">—</div><div class="stat-delta" id="fix-embed-ok">—</div></div>
+        <div class="stat-card"><div class="stat-label">Fix records</div><div class="stat-value" id="fix-rec-total">—</div><div class="stat-delta">saved patterns</div></div>
+        <div class="stat-card"><div class="stat-label">With vectors</div><div class="stat-value" id="fix-rec-vec">—</div><div class="stat-delta">semantic tier</div></div>
+        <div class="stat-card"><div class="stat-label">Open windows</div><div class="stat-value" id="fix-win-open">—</div><div class="stat-delta">in progress</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Open fix windows</span><span class="tag tag-warn">needs fix or fix-done</span></div>
+          <div class="panel-body-sm"><div class="toil-list" id="fix-windows-list"><div class="loading">Loading…</div></div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Terminal commands</span></div>
+          <div class="panel-body-sm" style="font-size:12px;color:var(--ink-muted);line-height:1.8;font-family:var(--mono)">
+            ghost fix-status<br/>
+            ghost fix-history<br/>
+            ghost fix-suggest &quot;pytest tests/&quot;<br/>
+            ghost fix-done
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Look up a failing command</span><span class="tag tag-muted">exact → fuzzy → semantic</span></div>
+        <div class="panel-body">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+            <input id="fix-q-cmd" type="text" placeholder="e.g. pytest tests/ / docker build ." style="flex:1;min-width:220px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:8px 12px;font-size:13px;color:var(--ink);font-family:var(--mono);outline:none;" />
+            <label style="font-size:11px;color:var(--ink-tertiary);display:flex;align-items:center;gap:6px">exit <input id="fix-q-exit" type="text" value="1" style="width:44px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:6px 8px;font-size:12px;color:var(--ink);font-family:var(--mono);" /></label>
+            <input id="fix-q-proj" type="text" placeholder="project filter (optional)" style="width:160px;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:8px 12px;font-size:12px;color:var(--ink);font-family:var(--mono);" />
+            <button class="btn btn-accent" id="fix-suggest-btn">Search</button>
+          </div>
+          <div class="insights-list" id="fix-suggest-results"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Saved fixes</span><span class="tag tag-muted" id="fix-hist-tag">—</span></div>
+        <div class="panel-body" style="padding:0"><table class="proj-table" id="fix-history-table"><tbody><tr><td class="loading" style="padding:16px">Loading…</td></tr></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- FOCUS -->
+    <div class="view" id="view-focus">
+      <div class="page-header">
+        <div><div class="page-title">Focus Analysis</div><div class="page-sub">Context switching patterns and deep work insights</div></div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-accent-bar"></div><div class="stat-label">Avg focus block</div><div class="stat-value" id="f-avg">—</div><div class="stat-delta">this week</div></div>
+        <div class="stat-card"><div class="stat-label">Best focus day</div><div class="stat-value" id="f-best" style="color:var(--success)">—</div><div class="stat-delta">fewest switches</div></div>
+        <div class="stat-card"><div class="stat-label">Worst day</div><div class="stat-value" id="f-worst" style="color:var(--danger)">—</div><div class="stat-delta">most switches</div></div>
+        <div class="stat-card"><div class="stat-label">Weekly switches</div><div class="stat-value" id="f-switches">—</div><div class="stat-delta" id="f-switches-delta">—</div></div>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Focus block duration — this week</span></div>
+          <div class="panel-body">
+            <div class="switch-chart" id="focus-block-chart" style="height:80px"></div>
+            <div style="margin-top:8px;font-size:11px;color:var(--ink-tertiary)">Bar height = longest focus block that day</div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Context switches — this week</span></div>
+          <div class="panel-body">
+            <div class="switch-chart" id="focus-switch-chart" style="height:80px"></div>
+            <div style="margin-top:8px;font-size:11px;color:var(--ink-tertiary)">Target: under 15/day. Red bars exceed threshold.</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Activity heatmap — hourly output by day</span><span class="tag tag-muted">Past 7 days</span></div>
+        <div class="panel-body">
+          <div style="overflow-x:auto"><div class="heatmap-grid" id="heatmap"></div></div>
+          <div style="margin-top:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-tertiary)">
+            Intensity:
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--surface-3)"></span>none
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(94,106,210,0.2)"></span>low
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(94,106,210,0.5)"></span>med
+            <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(94,106,210,0.85)"></span>high
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INSIGHTS -->
+    <div class="view" id="view-insights">
+      <div class="page-header">
+        <div><div class="page-title">AI Insights</div><div class="page-sub">Natural language analysis of your workflow patterns</div></div>
+        <div class="header-actions">
+          <span class="tag tag-primary" id="insights-provider-tag" style="font-size:11px;padding:4px 10px">—</span>
+          <button class="btn btn-accent" id="run-insights-btn">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1.5v2M6 8.5v2M1.5 6h2M8.5 6h2M3 3l1.4 1.4M7.6 7.6 9 9M3 9l1.4-1.4M7.6 4.4 9 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            Re-run analysis
+          </button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Workflow insights</span></div>
+        <div class="panel-body"><div class="insights-list" id="full-insights-list"><div class="loading">Loading insights…</div></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Ask Ghost Pulse</span><span class="tag tag-muted">Natural language query</span></div>
+        <div class="panel-body">
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <input id="insight-query" type="text" placeholder="e.g. What project should I focus on tomorrow?" style="flex:1;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:8px 12px;font-size:13px;color:var(--ink);font-family:var(--font);outline:none;" />
+            <button class="btn btn-accent" id="ask-btn">Ask</button>
+          </div>
+          <div id="ask-response" style="display:none;background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-md);padding:12px;font-size:12px;color:var(--ink-muted);line-height:1.7;white-space:pre-wrap"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="quick-queries"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="view" id="view-config">
+      <div class="page-header">
+        <div><div class="page-title">Configuration</div><div class="page-sub">ghost config · ~/.ghost-pulse/config.toml</div></div>
+        <div class="header-actions"><button class="btn btn-accent" id="save-config-btn">Save changes</button></div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">LLM Provider</span></div>
+          <div class="config-section">
+            <div class="config-row">
+              <div><div class="config-key">Provider</div><div class="config-desc">Which LLM backend to use</div></div>
+              <select class="config-select" id="cfg-provider">
+                <option value="ollama">ollama (local)</option>
+                <option value="claude">claude</option>
+                <option value="groq">groq</option>
+                <option value="openai">openai</option>
+                <option value="none">none</option>
+              </select>
+            </div>
+            <div class="config-row"><div><div class="config-key">Model</div><div class="config-desc">Model name for the selected provider</div></div><code class="config-val" id="cfg-model">—</code></div>
+            <div class="config-row"><div><div class="config-key">Ollama host</div><div class="config-desc">Base URL for local Ollama instance</div></div><code class="config-val" id="cfg-ollama-host">—</code></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Collection</span></div>
+          <div class="config-section">
+            <div class="config-row"><div><div class="config-key">Shell hook</div><div class="config-desc">Capture every command via zsh/bash precmd</div></div><div class="toggle on" id="toggle-shell" data-cfg="collection.shell_hook"></div></div>
+            <div class="config-row"><div><div class="config-key">Git watcher</div><div class="config-desc">Track commits, branches, stash events</div></div><div class="toggle on" id="toggle-git" data-cfg="collection.git_watcher"></div></div>
+            <div class="config-row"><div><div class="config-key">Window focus</div><div class="config-desc">Track active app for context switch detection</div></div><div class="toggle on" id="toggle-window" data-cfg="collection.window_focus"></div></div>
+            <div class="config-row"><div><div class="config-key">File watcher</div><div class="config-desc">Track .env and config file edits</div></div><div class="toggle" id="toggle-file" data-cfg="collection.file_watcher"></div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Fix knowledge (RAG)</span></div>
+          <div class="config-section">
+            <div class="config-row">
+              <div><div class="config-key">Auto-track fix windows</div><div class="config-desc">Open a window when a command fails; learn from the next steps</div></div>
+              <div class="toggle on" id="toggle-rag-track"></div>
+            </div>
+            <div class="config-row">
+              <div><div class="config-key">Embedding provider</div><div class="config-desc">For semantic search — auto tries local, Ollama, then OpenAI</div></div>
+              <select class="config-select" id="cfg-embed-provider">
+                <option value="auto">auto</option>
+                <option value="local">local (sentence-transformers)</option>
+                <option value="ollama">ollama</option>
+                <option value="openai">openai</option>
+                <option value="none">none</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Privacy</span></div>
+          <div class="config-section">
+            <div class="config-row"><div><div class="config-key">Local-only mode</div><div class="config-desc">Never send data to any external service</div></div><div class="toggle on" id="toggle-local" data-cfg="privacy.local_only"></div></div>
+            <div class="config-row"><div><div class="config-key">Retention</div><div class="config-desc">How long to keep event data</div></div>
+              <select class="config-select" id="cfg-retention">
+                <option value="30">30 days</option>
+                <option value="90">90 days</option>
+                <option value="365">1 year</option>
+                <option value="0">forever</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Web UI</span></div>
+          <div class="config-section">
+            <div class="config-row"><div><div class="config-key">Port</div><div class="config-desc">Port for ghost web server</div></div><code class="config-val" id="cfg-port">8765</code></div>
+            <div class="config-row"><div><div class="config-key">Bind address</div><div class="config-desc">Network interface to bind to</div></div><code class="config-val">127.0.0.1</code></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Daemon status</span></div>
+        <div class="panel-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+            <div><div style="font-size:10px;color:var(--ink-tertiary);margin-bottom:4px">PID</div><code style="font-family:var(--mono);font-size:13px;color:var(--ink)" id="cfg-pid">—</code></div>
+            <div><div style="font-size:10px;color:var(--ink-tertiary);margin-bottom:4px">Uptime</div><code style="font-family:var(--mono);font-size:13px;color:var(--ink)" id="cfg-uptime">—</code></div>
+            <div><div style="font-size:10px;color:var(--ink-tertiary);margin-bottom:4px">Events today</div><code style="font-family:var(--mono);font-size:13px;color:var(--ink)" id="cfg-events">—</code></div>
+            <div><div style="font-size:10px;color:var(--ink-tertiary);margin-bottom:4px">DB size</div><code style="font-family:var(--mono);font-size:13px;color:var(--ink)" id="cfg-db-size">—</code></div>
+          </div>
+          <div style="margin-top:16px;display:flex;gap:8px">
+            <button class="btn" id="daemon-restart-btn">Restart daemon</button>
+            <button class="btn" id="daemon-stop-btn" style="color:var(--danger);border-color:rgba(232,123,90,0.3)">Stop daemon</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  const COLORS = ['#5e6ad2','#fbbf24','#4ade80','#f472b6','#60a5fa','#fb923c','#a78bfa','#34d399'];
+
+  function esc(s) {
+    if (s == null || s === undefined) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  const QUICK_QUERIES = [
+    'What project should I focus on tomorrow?',
+    'When is my best time for deep work?',
+    'What command should I automate next?',
+    'How did this week compare to last?',
+  ];
+
+  function fmtMins(mins) {
+    const m = Math.round(mins || 0);
+    const h = Math.floor(m / 60), r = m % 60;
+    if (h) return `${h}h ${r.toString().padStart(2,'0')}m`;
+    return `${r}m`;
+  }
+
+  function makeDonut(svgId, items, cx, cy, r, sw) {
+    const svg = document.getElementById(svgId);
+    if (!svg) return;
+    svg.innerHTML = '';
+    const total = items.reduce((s, d) => s + (d.pct || 0), 0) || 1;
+    const circ = 2 * Math.PI * r;
+    let offset = 0;
+    items.forEach(d => {
+      const frac = (d.pct || 0) / total;
+      const dash = frac * circ;
+      const gap = circ - dash;
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r);
+      c.setAttribute('fill', 'none'); c.setAttribute('stroke', d.color); c.setAttribute('stroke-width', sw);
+      c.setAttribute('stroke-dasharray', `${dash} ${gap}`);
+      c.setAttribute('stroke-dashoffset', -(offset * circ));
+      c.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+      c.setAttribute('opacity', '0.85');
+      svg.appendChild(c);
+      offset += frac;
+    });
+  }
+
+  function makeSwitchChart(id, data, maxH) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = '';
+    const maxV = Math.max(...data.map(s => s.v || 0), 1);
+    data.forEach(s => {
+      const wrap = document.createElement('div');
+      wrap.className = 'switch-bar-wrap';
+      const bar = document.createElement('div');
+      bar.className = `switch-bar ${s.cls || 'none'}`;
+      bar.style.height = `${s.v > 0 ? Math.max((s.v / maxV) * maxH, 4) : 2}px`;
+      if (s.customBg) { bar.style.background = s.customBg; bar.style.opacity = s.opacity || '1'; }
+      const label = document.createElement('span');
+      label.className = 'switch-day';
+      label.textContent = s.d;
+      if (s.labelColor) label.style.color = s.labelColor;
+      wrap.appendChild(bar); wrap.appendChild(label);
+      el.appendChild(wrap);
+    });
+  }
+
+  function makeActivityList(id, items) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!items || !items.length) { el.innerHTML = '<div class="empty">No activity.</div>'; return; }
+    el.innerHTML = items.map(a =>
+      `<div class="activity-item">
+        <span class="activity-time">${a.time}</span>
+        <span class="activity-dot" style="background:${a.color}"></span>
+        <span class="activity-text">${a.text}</span>
+        <span class="activity-proj">${a.proj}</span>
+      </div>`
+    ).join('');
+  }
+
+  // Toil
+  let _toilData = [];
+  const appliedToil = new Set();
+
+  function makeToilList(id, patterns, limit) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const items = limit != null ? patterns.slice(0, limit) : patterns;
+    if (!items.length) { el.innerHTML = '<div class="empty">No toil patterns detected yet.</div>'; return; }
+    el.innerHTML = items.map((p, i) => {
+      const cmd = p.label || (p.commands || []).join(' → ') || '—';
+      const wastedStr = p.wasted_hours > 0 ? `~${p.wasted_hours.toFixed(1)}h estimated wasted` : '';
+      const applied = appliedToil.has(i);
+      return `<div class="toil-item">
+        <div class="toil-header"><span class="toil-cmd">${cmd}</span><span class="toil-freq">×${p.count}</span></div>
+        <div class="toil-body">
+          <span class="toil-suggest">→ ghost suggest ${p.id || i}</span>
+          <button class="toil-apply" data-i="${i}" ${applied ? 'disabled style="color:var(--success);border-color:rgba(39,166,68,0.3);background:rgba(39,166,68,0.08)"' : ''}>${applied ? '✓ Applied' : 'Apply'}</button>
+        </div>
+        <div class="toil-meta">${wastedStr}</div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('.toil-apply:not([disabled])').forEach(btn => {
+      btn.addEventListener('click', () => applyToil(parseInt(btn.dataset.i), btn));
+    });
+  }
+
+  function applyToil(i, btn) {
+    if (appliedToil.has(i)) return;
+    appliedToil.add(i);
+    document.querySelectorAll(`.toil-apply[data-i="${i}"]`).forEach(b => {
+      b.textContent = '✓ Applied';
+      b.style.color = 'var(--success)'; b.style.borderColor = 'rgba(39,166,68,0.3)';
+      b.style.background = 'rgba(39,166,68,0.08)'; b.disabled = true;
+    });
+    const al = document.getElementById('applied-list');
+    if (al.dataset.placeholder) { al.innerHTML = ''; delete al.dataset.placeholder; }
+    const p = _toilData[i];
+    const cmd = p ? (p.label || (p.commands||[]).join(' → ') || '?') : '?';
+    al.innerHTML += `<div class="activity-item"><span class="activity-dot" style="background:var(--success)"></span><span class="activity-text"><code>${cmd.substring(0,60)}</code></span><span class="activity-proj">applied</span></div>`;
+    const remaining = _toilData.length - appliedToil.size;
+    const badge = document.getElementById('toil-badge');
+    if (badge) badge.textContent = remaining > 0 ? remaining : '✓';
+    const tag = document.getElementById('applied-count-tag');
+    if (tag) { tag.textContent = `${appliedToil.size} applied`; tag.className = 'tag tag-success'; }
+  }
+
+  async function api(path) {
+    const r = await fetch(path);
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+
+  async function apiPost(path, body) {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+
+  // Status
+  async function loadStatus() {
+    try {
+      const s = await api('/api/status');
+      const pill = document.getElementById('daemon-pill');
+      if (s.daemon_running) { pill.className = 'status-pill'; document.getElementById('daemon-label').textContent = 'daemon running'; }
+      else { pill.className = 'status-pill stopped'; document.getElementById('daemon-label').textContent = 'daemon stopped'; }
+      document.getElementById('cfg-pid').textContent = s.pid || '—';
+      document.getElementById('cfg-uptime').textContent = s.uptime || '—';
+      document.getElementById('cfg-events').textContent = (s.total_events || 0).toLocaleString();
+      document.getElementById('cfg-db-size').textContent = s.db_size || '—';
+    } catch(_) {}
+    try {
+      const fst = await api('/api/fix/status');
+      const badge = document.getElementById('fix-open-badge');
+      if (badge) {
+        const n = (fst.open_windows || []).length;
+        badge.textContent = n;
+        badge.style.opacity = n > 0 ? '1' : '0.45';
+      }
+    } catch(_) {}
+  }
+
+  function updateTopbarDate() {
+    const now = new Date();
+    document.getElementById('topbar-date').textContent =
+      now.toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'}) + ' · ' +
+      now.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit',hour12:false});
+    document.getElementById('topbar-addr').textContent = `localhost:${window.location.port || 8765}`;
+  }
+
+  // TODAY
+  let _todayLoaded = false;
+  async function renderToday(force) {
+    if (_todayLoaded && !force) return;
+    _todayLoaded = true;
+    const now = new Date();
+    document.getElementById('today-sub').textContent =
+      now.toLocaleDateString('en-US', {weekday:'long',month:'long',day:'numeric',year:'numeric'}) + ' · ' +
+      now.toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit',hour12:false});
+    try {
+      const [stats, events, focus, toil] = await Promise.all([
+        api('/api/stats/today'), api('/api/events?limit=12'),
+        api('/api/focus'), api('/api/toil'),
+      ]);
+
+      // Stat cards
+      document.getElementById('t-time').textContent = fmtMins(stats.total_minutes);
+      document.getElementById('t-time-delta').textContent = `${stats.project_count || 0} project${(stats.project_count||0)!==1?'s':''}`;
+      document.getElementById('t-commits').textContent = stats.total_commits || 0;
+      document.getElementById('t-commits-delta').textContent = `${stats.total_cmds || 0} commands`;
+      const sw = stats.switches || 0;
+      const swEl = document.getElementById('t-switches');
+      swEl.textContent = sw;
+      swEl.style.color = sw > 20 ? 'var(--danger)' : sw > 10 ? 'var(--warn)' : 'inherit';
+      document.getElementById('today-switch-tag').textContent = `${sw} switches`;
+      if (stats.longest_block) {
+        document.getElementById('t-focus').textContent = fmtMins(stats.longest_block.minutes);
+        document.getElementById('t-focus-delta').textContent = `${stats.longest_block.start}–${stats.longest_block.end}`;
+      } else {
+        document.getElementById('t-focus').textContent = '—';
+        document.getElementById('t-focus-delta').textContent = 'no deep work blocks yet';
+      }
+
+      // Project bars + donut
+      const projs = stats.projects || [];
+      const barEl = document.getElementById('today-project-bars');
+      const legendEl = document.getElementById('donut-today-legend');
+      if (projs.length) {
+        const maxM = Math.max(...projs.map(p => p.minutes), 1);
+        barEl.innerHTML = projs.slice(0,6).map((p,i) =>
+          `<div class="bar-row"><span class="bar-label">${p.name}</span><div class="bar-track"><div class="bar-fill" data-w="${(p.minutes/maxM*100).toFixed(1)}%" style="width:0%;background:${COLORS[i%COLORS.length]}"></div></div><span class="bar-val">${fmtMins(p.minutes)}</span></div>`
+        ).join('');
+        setTimeout(() => barEl.querySelectorAll('.bar-fill').forEach(b => { b.style.width = b.dataset.w; }), 200);
+        makeDonut('donut-today', projs.slice(0,5).map((p,i) => ({pct:p.minutes, color:COLORS[i%COLORS.length]})), 36, 36, 26, 10);
+        legendEl.innerHTML = projs.slice(0,5).map((p,i) =>
+          `<div class="legend-item"><span class="legend-dot" style="background:${COLORS[i%COLORS.length]}"></span>${p.name}<span class="legend-pct">${p.pct}%</span></div>`
+        ).join('');
+      } else {
+        barEl.innerHTML = '<div class="empty">No project activity yet today.</div>';
+      }
+
+      // Timeline — built from events (each event has a timestamp and proj)
+      const hlEl = document.getElementById('hour-labels');
+      const rowsEl = document.getElementById('today-timeline-rows');
+      const tlLegendEl = document.getElementById('today-timeline-legend');
+      const hours = [8,9,10,11,12,13,14,15,16,17,18,19];
+      if (!hlEl.children.length) hlEl.innerHTML = hours.map(h => `<div class="hour-label">${h}</div>`).join('');
+      const projSet = projs.slice(0,4).map((p,i) => ({name:p.name, color:COLORS[i%COLORS.length]}));
+
+      // Build hour→project occupancy from today's events
+      // events have .time="HH:MM" and .proj
+      // Fetch more events for better timeline coverage
+      let allTodayEvents = events;
+      try {
+        allTodayEvents = await api('/api/events?limit=200');
+      } catch(_) {}
+
+      // Build a map: projName → Set of hours active
+      const projHours = {};
+      allTodayEvents.forEach(e => {
+        const proj = e.proj && e.proj !== 'unknown' ? e.proj : (e.proj || 'unknown');
+        const t = e.time || '';
+        const h = parseInt(t.split(':')[0]);
+        if (!isNaN(h) && h >= 8 && h <= 19) {
+          if (!projHours[proj]) projHours[proj] = new Set();
+          projHours[proj].add(h);
+        }
+      });
+
+      if (projSet.length) {
+        rowsEl.innerHTML = projSet.map(proj => {
+          const active = projHours[proj.name] || new Set();
+          const slots = hours.map(h => active.has(h) ? proj.color : null);
+          const hasAny = slots.some(Boolean);
+          return `<div class="timeline-row"><span class="timeline-proj">${proj.name}</span><div class="timeline-blocks">${slots.map(c =>
+            `<div class="tblock" style="flex:1;background:${c||'var(--surface-3)'};opacity:${c?'0.8':'0.15'}"></div>`
+          ).join('')}</div></div>`;
+        }).join('');
+        tlLegendEl.innerHTML = projSet.map(p =>
+          `<span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color}"></span>${p.name}</span>`
+        ).join('');
+      } else {
+        rowsEl.innerHTML = '<div class="empty">No activity yet today.</div>';
+      }
+
+      // Activity
+      makeActivityList('activity-list', events);
+
+      // Toil
+      _toilData = toil;
+      const badge = document.getElementById('toil-badge');
+      if (badge) badge.textContent = toil.length || 0;
+      document.getElementById('toil-today-tag').textContent = `${toil.length} pattern${toil.length!==1?'s':''}`;
+      makeToilList('toil-list-today', toil, 3);
+
+      // 7-day switch chart
+      const ds = focus.daily_switches || [];
+      if (ds.length) makeSwitchChart('switch-chart-today', ds.map(d => ({d:d.day, v:d.switches, cls:d.cls})), 40);
+
+    } catch(e) { console.error('today', e); }
+  }
+
+  // WEEK
+  let _weekLoaded = false;
+  async function renderWeek(force) {
+    if (_weekLoaded && !force) return;
+    _weekLoaded = true;
+    try {
+      const [week, events, focus] = await Promise.all([
+        api('/api/stats/week'), api('/api/events?limit=20'), api('/api/focus'),
+      ]);
+      const now = new Date();
+      const wa = new Date(now - 7*86400000);
+      document.getElementById('week-sub').textContent =
+        `${wa.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${now.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+
+      document.getElementById('w-time').textContent = `${week.total_hours||0}h`;
+      document.getElementById('w-time-delta').textContent = `${week.total_minutes||0} minutes`;
+      document.getElementById('w-commits').textContent = week.total_commits || 0;
+      document.getElementById('w-commits-delta').textContent = `${week.unique_projects||0} projects`;
+      document.getElementById('w-focus').textContent = week.avg_focus_block ? `${week.avg_focus_block}m` : '—';
+      if (week.best_day) {
+        document.getElementById('w-bestday').textContent = week.best_day.day;
+        document.getElementById('w-bestday-delta').textContent = `${week.best_day.hours}h · ${week.best_day.commits} commits`;
+      }
+
+      // Daily hours chart
+      const daily = week.daily || [];
+      const maxH = Math.max(...daily.map(d => d.hours), 1);
+      const whcEl = document.getElementById('week-hours-chart');
+      makeSwitchChart('week-hours-chart', daily.map(d => ({
+        d: d.day, v: d.hours, cls: '',
+        customBg: d.is_today ? 'var(--primary)' : 'var(--surface-4)',
+        opacity: d.is_today ? '1' : '0.7',
+        labelColor: d.is_today ? 'var(--primary)' : '',
+      })), 70);
+
+      // Week grid
+      const wgf = document.getElementById('week-grid-full');
+      wgf.innerHTML = daily.map(d =>
+        `<div class="week-day"><div class="week-bar-wrap"><div class="week-bar ${d.is_today?'today':'past'}" style="height:${Math.max(d.hours/maxH*40,3)}px"></div></div><div class="week-label" style="${d.is_today?'color:var(--primary)':''}">${d.day}</div><div class="week-hours">${d.hours>0?d.hours+'h':'–'}</div></div>`
+      ).join('');
+
+      // Project bars
+      const projs = week.projects || [];
+      const maxPM = Math.max(...projs.map(p => p.minutes), 1);
+      document.getElementById('week-project-bars').innerHTML = projs.slice(0,6).map((p,i) =>
+        `<div class="bar-row"><span class="bar-label">${p.name}</span><div class="bar-track"><div class="bar-fill" data-w="${(p.minutes/maxPM*100).toFixed(1)}%" style="width:0%;background:${COLORS[i%COLORS.length]}"></div></div><span class="bar-val">${p.hours}h</span></div>`
+      ).join('');
+      setTimeout(() => document.querySelectorAll('#week-project-bars .bar-fill').forEach(b => { b.style.width = b.dataset.w; }), 200);
+
+      // Project dist
+      document.getElementById('week-proj-dist').innerHTML = projs.slice(0,5).map((p,i) =>
+        `<div class="bar-row"><span class="bar-label">${p.name}</span><div class="bar-track"><div class="bar-fill" style="width:${p.pct}%;background:${COLORS[i%COLORS.length]}"></div></div><span class="bar-val">${p.pct}%</span></div>`
+      ).join('');
+
+      // Switch charts
+      const ds = focus.daily_switches || [];
+      if (ds.length) {
+        makeSwitchChart('switch-chart-week', ds.map(d => ({d:d.day, v:d.switches, cls:d.cls})), 60);
+      }
+      const avgSw = week.switches_per_day ? week.switches_per_day.toFixed(1) : '—';
+      document.getElementById('week-switch-tag').textContent = `Avg ${avgSw}/day`;
+      const fw = focus.week || {};
+      if (fw.best_day && fw.worst_day) {
+        document.getElementById('week-switch-note').textContent = `Best day: ${fw.best_day} (fewest switches). Worst: ${fw.worst_day} (most switches).`;
+      }
+
+      makeActivityList('week-activity', events);
+    } catch(e) { console.error('week', e); }
+  }
+
+  // PROJECTS
+  let _projLoaded = false;
+  async function renderProjects(force) {
+    if (_projLoaded && !force) return;
+    _projLoaded = true;
+    try {
+      const [projs, branches] = await Promise.all([api('/api/projects'), api('/api/branches')]);
+      const active = projs.filter(p => p.week_hours > 0);
+      document.getElementById('projects-sub').textContent = `${active.length} active project${active.length!==1?'s':''} tracked this week`;
+
+      document.getElementById('proj-stat-cards').innerHTML = projs.slice(0,3).map((p,i) =>
+        `<div class="stat-card" style="border-top:2px solid ${COLORS[i]}"><div class="stat-label">${p.name}</div><div class="stat-value">${p.week_hours}h</div><div class="stat-delta">this week · ${p.week_commits} commits</div></div>`
+      ).join('');
+
+      const totalWM = Math.max(projs.reduce((s,p) => s+p.week_minutes, 0), 1);
+      document.getElementById('proj-table').innerHTML =
+        `<thead><tr><th>Project</th><th>Today</th><th>This week</th><th>This month</th><th>Commits (wk)</th><th>Share</th></tr></thead>` +
+        `<tbody>${projs.map((p,i) => `<tr>
+          <td><span class="proj-name" style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:${COLORS[i%COLORS.length]};display:inline-block"></span>${p.name}</span></td>
+          <td>${p.today_hours>0?p.today_hours+'h':'—'}</td><td>${p.week_hours}h</td><td>${p.month_hours}h</td><td>${p.week_commits}</td>
+          <td><div style="min-width:80px"><div class="proj-mini-bar"><div class="proj-mini-fill" style="width:${(p.week_minutes/totalWM*100).toFixed(1)}%;background:${COLORS[i%COLORS.length]}"></div></div></div></td>
+        </tr>`).join('')}</tbody>`;
+
+      makeDonut('donut-projects', projs.slice(0,5).map((p,i) => ({pct:p.week_minutes, color:COLORS[i%COLORS.length]})), 40, 40, 30, 12);
+      document.getElementById('proj-donut-legend').innerHTML = projs.slice(0,5).map((p,i) =>
+        `<div class="legend-item"><span class="legend-dot" style="background:${COLORS[i%COLORS.length]}"></span>${p.name}<span class="legend-pct">${p.pct}%</span></div>`
+      ).join('');
+
+      const blEl = document.getElementById('branch-list');
+      if (branches.length) {
+        blEl.innerHTML = branches.map(b => {
+          const pi = projs.findIndex(p => p.name === b.project);
+          const color = pi >= 0 ? COLORS[pi % COLORS.length] : COLORS[0];
+          return `<div class="activity-item"><span class="activity-time">${b.when||'—'}</span><span class="activity-dot" style="background:${color}"></span><span class="activity-text"><code>${b.branch}</code>${b.commits?` — ${b.commits} commit${b.commits!==1?'s':''}`:''}</span><span class="activity-proj">${b.project}</span></div>`;
+        }).join('');
+      } else {
+        blEl.innerHTML = '<div class="empty">No branch activity this week.</div>';
+      }
+    } catch(e) { console.error('projects', e); }
+  }
+
+  // TOIL
+  let _toilLoaded = false;
+  async function renderToil(force) {
+    if (_toilLoaded && !force) return;
+    _toilLoaded = true;
+    try {
+      const toil = await api('/api/toil');
+      _toilData = toil;
+      const totalReps = toil.reduce((s,p) => s+(p.count||1), 0);
+      const totalWasted = toil.reduce((s,p) => s+(p.wasted_hours||0), 0);
+      document.getElementById('toil-count').textContent = toil.length;
+      document.getElementById('toil-reps').textContent = totalReps;
+      document.getElementById('toil-wasted').textContent = `${totalWasted.toFixed(1)}h`;
+      document.getElementById('toil-count-tag').textContent = `${toil.length} total`;
+      makeToilList('toil-list-full', toil);
+      // Sync applied
+      appliedToil.forEach(i => {
+        document.querySelectorAll(`.toil-apply[data-i="${i}"]`).forEach(b => {
+          b.textContent = '✓ Applied'; b.style.color = 'var(--success)';
+          b.style.borderColor = 'rgba(39,166,68,0.3)'; b.style.background = 'rgba(39,166,68,0.08)'; b.disabled = true;
+        });
+      });
+    } catch(e) { console.error('toil', e); }
+  }
+
+  // FOCUS
+  let _focusLoaded = false;
+  async function renderFocus(force) {
+    if (_focusLoaded && !force) return;
+    _focusLoaded = true;
+    try {
+      const focus = await api('/api/focus');
+      const w = focus.week || {};
+      document.getElementById('f-avg').textContent = w.avg_focus_block ? `${w.avg_focus_block}m` : '—';
+      document.getElementById('f-best').textContent = w.best_day || '—';
+      document.getElementById('f-worst').textContent = w.worst_day || '—';
+      document.getElementById('f-switches').textContent = w.switches || 0;
+      document.getElementById('f-switches-delta').textContent = `${(w.switches_per_day||0).toFixed(1)}/day avg`;
+
+      // Focus block chart
+      const df = focus.daily_focus || [];
+      const maxB = Math.max(...df.map(d => d.longest_block), 1);
+      makeSwitchChart('focus-block-chart', df.map(d => ({
+        d: d.day, v: d.longest_block, cls: '',
+        customBg: 'var(--success)', opacity: d.is_today ? '1' : '0.6',
+      })), 70);
+
+      // Switch chart
+      const ds = focus.daily_switches || [];
+      if (ds.length) makeSwitchChart('focus-switch-chart', ds.map(d => ({d:d.day, v:d.switches, cls:d.cls})), 70);
+
+      // Heatmap
+      const hm = document.getElementById('heatmap');
+      if (hm && !hm.children.length) {
+        const hours = ['8','9','10','11','12','13','14','15','16','17'];
+        const colors = ['var(--surface-3)','rgba(94,106,210,0.2)','rgba(94,106,210,0.5)','rgba(94,106,210,0.85)'];
+        hm.innerHTML = `<div class="heatmap-label"></div>` + hours.map(h => `<div class="heatmap-label" style="font-size:9px;justify-content:center">${h}</div>`).join('');
+        ds.forEach((day, di) => {
+          const sw = day.switches || 0;
+          const row = hours.map((_,hi) => {
+            const mid = hi >= 1 && hi <= 5;
+            let lv = 0;
+            if (sw === 0) lv = 0;
+            else if (sw < 10) lv = mid ? 1 : 0;
+            else if (sw < 20) lv = mid ? (hi%3===0?2:1) : 1;
+            else lv = mid ? 3 : (hi%2===0?2:1);
+            return `<div class="heatmap-cell" style="background:${colors[lv]}"></div>`;
+          }).join('');
+          hm.innerHTML += `<div class="heatmap-label">${day.day}</div>${row}`;
+        });
+      }
+    } catch(e) { console.error('focus', e); }
+  }
+
+  // INSIGHTS
+  let _insightsLoaded = false;
+  async function renderInsights(force) {
+    if (_insightsLoaded && !force) return;
+    _insightsLoaded = true;
+
+    if (!document.getElementById('quick-queries').children.length) {
+      QUICK_QUERIES.forEach(q => {
+        const btn = document.createElement('button');
+        btn.className = 'btn'; btn.style.fontSize = '11px'; btn.textContent = q;
+        btn.addEventListener('click', () => { document.getElementById('insight-query').value = q; triggerAsk(q); });
+        document.getElementById('quick-queries').appendChild(btn);
+      });
+    }
+
+    const il = document.getElementById('full-insights-list');
+    il.innerHTML = '<div class="loading">Generating insights…</div>';
+    try {
+      const data = await api('/api/insights');
+      document.getElementById('insights-provider-tag').textContent = `${data.provider||'—'} · ${data.model||'—'}`;
+
+      if (!data.available) {
+        il.innerHTML = `<div class="insight-item"><div class="insight-icon" style="background:rgba(217,119,6,0.1)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 3v3.5" stroke="#d97706" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="9" r=".8" fill="#d97706"/></svg></div><span class="insight-text"><strong>No LLM provider configured.</strong> Run <code>ghost config set llm.provider ollama</code> to enable AI insights.</span></div>`;
+        return;
+      }
+      if (data.insights) {
+        const iconBgs = ['rgba(39,166,68,0.1)','rgba(217,119,6,0.1)','rgba(94,106,210,0.1)'];
+        const iconSvgs = [
+          `<path d="M2.5 6.5l3 3 5-5" stroke="#4ade80" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>`,
+          `<path d="M6.5 3v3.5" stroke="#d97706" stroke-width="1.3" stroke-linecap="round"/><circle cx="6.5" cy="9" r=".8" fill="#d97706"/>`,
+          `<path d="M2 9.5l2-3 2 2 2-4 2 3" stroke="var(--primary)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>`,
+        ];
+        const rawLines = data.insights.split('\n').map(l => l.trim()).filter(l => l && l !== '---');
+        const items = [];
+        let cur = '';
+        rawLines.forEach(l => {
+          if (/^[•\-\*\d]/.test(l) || l.startsWith('**') || items.length === 0) {
+            if (cur) items.push(cur);
+            cur = l.replace(/^[•\-\*\d\.]+\s*/, '').replace(/^\*\*(.*?)\*\*/, '$1');
+          } else { cur += ' ' + l; }
+        });
+        if (cur) items.push(cur);
+        const filtered = items.filter(s => s.length > 10);
+        if (filtered.length) {
+          il.innerHTML = filtered.map((ins, i) => {
+            const idx = i % 3;
+            const colon = ins.indexOf(':');
+            const strong = colon > 0 && colon < 60 ? ins.substring(0, colon).trim() : '';
+            const body = strong ? ins.substring(colon+1).trim() : ins;
+            return `<div class="insight-item"><div class="insight-icon" style="background:${iconBgs[idx]}"><svg width="13" height="13" viewBox="0 0 13 13" fill="none">${iconSvgs[idx]}</svg></div><span class="insight-text">${strong?`<strong>${strong}.</strong> `:''}${body}</span></div>`;
+          }).join('');
+        } else {
+          il.innerHTML = `<div class="insight-item"><div class="insight-icon" style="background:rgba(94,106,210,0.1)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 9.5l2-3 2 2 2-4 2 3" stroke="var(--primary)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="insight-text">${data.insights}</span></div>`;
+        }
+      } else {
+        il.innerHTML = '<div class="empty">No insights generated yet.</div>';
+      }
+    } catch(e) { il.innerHTML = '<div class="empty">Could not load insights.</div>'; console.error('insights', e); }
+  }
+
+  async function triggerAsk(q) {
+    const resp = document.getElementById('ask-response');
+    resp.style.display = 'block'; resp.textContent = '…thinking';
+    try {
+      const data = await fetch('/api/insights/ask', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({question: q}),
+      }).then(r => r.json());
+      resp.textContent = data.answer || '—';
+    } catch(e) { resp.textContent = 'Error contacting API.'; }
+  }
+
+  // FIX KB
+  let _fixesLoaded = false;
+  async function renderFixes(force) {
+    if (_fixesLoaded && !force) return;
+    _fixesLoaded = true;
+    try {
+      const st = await api('/api/fix/status');
+      document.getElementById('fix-embed-name').textContent = st.embedding_provider || '—';
+      document.getElementById('fix-embed-ok').textContent = st.embedding_available ? '● available' : '○ offline';
+      document.getElementById('fix-embed-ok').className = 'stat-delta ' + (st.embedding_available ? 'up' : 'down');
+      document.getElementById('fix-rec-total').textContent = st.fix_records_total ?? 0;
+      document.getElementById('fix-rec-vec').textContent = st.fix_records_with_embedding ?? 0;
+      document.getElementById('fix-win-open').textContent = st.windows_open ?? 0;
+
+      const badge = document.getElementById('fix-open-badge');
+      if (badge) {
+        const n = (st.open_windows || []).length;
+        badge.textContent = n;
+        badge.style.opacity = n > 0 ? '1' : '0.45';
+      }
+
+      const wl = document.getElementById('fix-windows-list');
+      const wins = st.open_windows || [];
+      if (!wins.length) {
+        wl.innerHTML = '<div class="empty">No open fix windows. Run a failing command inside a git repo, then recover.</div>';
+      } else {
+        wl.innerHTML = wins.map(w =>
+          `<div class="toil-item">
+            <div class="toil-header"><span class="toil-cmd">#${w.id} ${esc(w.pattern)}</span><span class="toil-freq">${esc(w.project || '—')}</span></div>
+            <div class="toil-meta">${w.commands_count || 0} commands logged · ${esc(w.started_at || '')}</div>
+          </div>`
+        ).join('');
+      }
+
+      const hist = await api('/api/fix/history?limit=80');
+      const recs = hist.records || [];
+      document.getElementById('fix-hist-tag').textContent = `${recs.length} shown`;
+      const tb = document.getElementById('fix-history-table');
+      if (!recs.length) {
+        tb.innerHTML = '<tbody><tr><td colspan="5" style="padding:16px" class="empty">No fix records yet. They appear after a resolved fix window or <code>ghost fix-done</code>.</td></tr></tbody>';
+      } else {
+        tb.innerHTML =
+          '<thead><tr><th>ID</th><th>Error pattern</th><th>Summary</th><th>Commands</th><th>Project</th></tr></thead><tbody>' +
+          recs.map(r => {
+            const cmds = (r.fix_commands || []).join(' → ');
+            return `<tr>
+              <td>${r.id}</td>
+              <td><code>${esc(r.error_pattern || '')}</code></td>
+              <td>${esc(r.fix_summary || '—')}</td>
+              <td style="font-family:var(--mono);font-size:11px;max-width:280px;overflow:hidden;text-overflow:ellipsis">${esc(cmds)}</td>
+              <td>${esc(r.project || '—')}</td>
+            </tr>`;
+          }).join('') + '</tbody>';
+      }
+    } catch(e) { console.error('fixes', e); }
+  }
+
+  async function runFixSuggest() {
+    const cmd = document.getElementById('fix-q-cmd').value.trim();
+    const exitEl = document.getElementById('fix-q-exit');
+    const exit_code = parseInt(exitEl && exitEl.value !== '' ? exitEl.value : '1', 10) || 1;
+    const projRaw = document.getElementById('fix-q-proj').value.trim();
+    const project = projRaw ? projRaw : null;
+    const el = document.getElementById('fix-suggest-results');
+    if (!cmd) { el.innerHTML = '<div class="empty">Enter a failing command.</div>'; return; }
+    el.innerHTML = '<div class="loading">Searching fix knowledge base…</div>';
+    try {
+      const data = await apiPost('/api/fix/suggest', { command: cmd, exit_code, project, top_k: 6 });
+      const sugg = data.suggestions || [];
+      if (!sugg.length) {
+        el.innerHTML = '<div class="empty">No matches. Teach Ghost Pulse by closing fix windows or running <code>ghost fix-done</code>.</div>';
+        return;
+      }
+      el.innerHTML = sugg.map(s => {
+        const tier = s.tier === 'exact' ? 'tag-success' : (s.tier === 'semantic' ? 'tag-primary' : 'tag-warn');
+        const pct = Math.round((s.score || 0) * 100);
+        const cmds = (s.fix_commands || []).join(' → ');
+        const sum = s.fix_summary ? `<div style="margin-top:6px">${esc(s.fix_summary)}</div>` : '';
+        return `<div class="insight-item" style="margin-bottom:10px">
+          <div class="insight-text"><span class="tag ${tier}">${esc(s.tier)} ${pct}%</span>${sum}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-muted);margin-top:8px;line-height:1.5">${esc(cmds)}</div>
+          ${s.project ? `<div style="font-size:11px;color:var(--ink-tertiary);margin-top:4px">project: ${esc(s.project)}</div>` : ''}
+        </div>`;
+      }).join('');
+    } catch(e) {
+      el.innerHTML = '<div class="empty">Could not run search.</div>';
+      console.error(e);
+    }
+  }
+
+  // CONFIG
+  let _configLoaded = false;
+  let _pendingConfig = {};
+  async function renderConfig(force) {
+    if (_configLoaded && !force) return;
+    _configLoaded = true;
+    try {
+      const [cfg, status] = await Promise.all([api('/api/config'), api('/api/status')]);
+      const provider = cfg.llm?.provider || 'none';
+      const sel = document.getElementById('cfg-provider');
+      [...sel.options].forEach(o => { o.selected = o.value === provider; });
+      sel.onchange = () => { _pendingConfig['llm.provider'] = sel.value; };
+      document.getElementById('cfg-model').textContent = cfg.llm?.model || '—';
+      document.getElementById('cfg-ollama-host').textContent = cfg.llm?.ollama_host || 'localhost:11434';
+
+      const toggles = {
+        'toggle-shell': cfg.collection?.shell_hook !== false,
+        'toggle-git': cfg.collection?.git_watcher !== false,
+        'toggle-window': cfg.collection?.window_focus !== false,
+        'toggle-file': cfg.collection?.file_watcher === true,
+        'toggle-local': cfg.privacy?.local_only !== false,
+      };
+      Object.entries(toggles).forEach(([id, on]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('on', on);
+        el.onclick = () => { el.classList.toggle('on'); _pendingConfig[el.dataset.cfg] = el.classList.contains('on'); };
+      });
+      document.getElementById('cfg-port').textContent = cfg.web?.port || 8765;
+      document.getElementById('cfg-pid').textContent = status.pid || '—';
+      document.getElementById('cfg-uptime').textContent = status.uptime || '—';
+      document.getElementById('cfg-events').textContent = (status.total_events||0).toLocaleString();
+      document.getElementById('cfg-db-size').textContent = status.db_size || '—';
+
+      const embedSel = document.getElementById('cfg-embed-provider');
+      if (embedSel) {
+        const ep = cfg.rag?.embedding?.provider || 'auto';
+        [...embedSel.options].forEach(o => { o.selected = o.value === ep; });
+        embedSel.onchange = () => { _pendingConfig['rag.embedding.provider'] = embedSel.value; };
+      }
+      const trk = document.getElementById('toggle-rag-track');
+      if (trk) {
+        const on = cfg.rag?.auto_track_fixes !== false;
+        trk.classList.toggle('on', on);
+        trk.onclick = () => { trk.classList.toggle('on'); _pendingConfig['rag.auto_track_fixes'] = trk.classList.contains('on'); };
+      }
+    } catch(e) { console.error('config', e); }
+  }
+
+  // ROUTING
+  const renderFns = {
+    today: f => renderToday(f), week: f => renderWeek(f),
+    projects: f => renderProjects(f), toil: f => renderToil(f),
+    fixes: f => renderFixes(f),
+    focus: f => renderFocus(f), insights: f => renderInsights(f), config: f => renderConfig(f),
+  };
+
+  function navigate(view) {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.querySelector(`.nav-item[data-view="${view}"]`)?.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const el = document.getElementById(`view-${view}`);
+    if (el) el.classList.add('active');
+    document.getElementById('main').scrollTop = 0;
+    renderFns[view]?.();
+  }
+
+  document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+    item.addEventListener('click', e => { e.preventDefault(); navigate(item.dataset.view); });
+  });
+
+  document.getElementById('refresh-btn').addEventListener('click', () => {
+    _todayLoaded = false; renderToday(true); loadStatus();
+  });
+  document.getElementById('fix-refresh-btn').addEventListener('click', () => {
+    _fixesLoaded = false; renderFixes(true); loadStatus();
+  });
+  document.getElementById('fix-suggest-btn').addEventListener('click', runFixSuggest);
+  document.getElementById('fix-q-cmd').addEventListener('keydown', e => {
+    if (e.key === 'Enter') runFixSuggest();
+  });
+  document.getElementById('run-insights-btn').addEventListener('click', () => {
+    _insightsLoaded = false; renderInsights(true);
+  });
+  document.getElementById('ask-btn').addEventListener('click', () => {
+    const q = document.getElementById('insight-query').value.trim(); if (q) triggerAsk(q);
+  });
+  document.getElementById('insight-query').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const q = e.target.value.trim(); if (q) triggerAsk(q); }
+  });
+  document.getElementById('apply-all-btn').addEventListener('click', () => {
+    _toilData.forEach((_, i) => { if (!appliedToil.has(i)) { const b = document.querySelector(`.toil-apply[data-i="${i}"]`); if (b) applyToil(i, b); } });
+  });
+  document.getElementById('save-config-btn').addEventListener('click', async () => {
+    if (!Object.keys(_pendingConfig).length) return;
+    try {
+      await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_pendingConfig)});
+      _pendingConfig = {}; _configLoaded = false; renderConfig(true);
+    } catch(e) { console.error('save config', e); }
+  });
+  document.getElementById('daemon-restart-btn').addEventListener('click', async () => {
+    try { await fetch('/api/daemon/restart', {method:'POST'}); loadStatus(); } catch(_) {}
+  });
+  document.getElementById('daemon-stop-btn').addEventListener('click', async () => {
+    try { await fetch('/api/daemon/stop', {method:'POST'}); loadStatus(); } catch(_) {}
+  });
+
+  // Init
+  updateTopbarDate();
+  setInterval(updateTopbarDate, 60000);
+  loadStatus();
+  renderToday();
+</script>
+</body>
+</html>
