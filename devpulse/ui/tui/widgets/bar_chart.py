@@ -1,4 +1,4 @@
-"""Horizontal bar chart widget."""
+"""Horizontal bar chart widget — k9s-inspired style."""
 
 from __future__ import annotations
 
@@ -6,11 +6,14 @@ from rich.text import Text
 from textual.widget import Widget
 
 
-_BAR_COLORS = ["#5e6ad2", "#fbbf24", "#4ade80", "#f472b6", "#22d3ee", "#fb923c", "#a78bfa", "#34d399"]
+_BAR_COLORS = [
+    "#5e6ad2", "#fbbf24", "#4ade80", "#f472b6",
+    "#22d3ee", "#fb923c", "#a78bfa", "#34d399",
+]
 
 
 class BarChart(Widget):
-    """A horizontal bar chart. Each row: label, bar, value."""
+    """A horizontal bar chart. Each row: label ███████░░░  value  pct%"""
 
     DEFAULT_CSS = """
     BarChart {
@@ -40,7 +43,7 @@ class BarChart(Widget):
 
     def render(self) -> Text:
         if not self.rows:
-            return Text(self.empty_msg, style="dim")
+            return Text(f"  {self.empty_msg}", style="dim italic")
 
         out = Text()
         for i, r in enumerate(self.rows):
@@ -52,16 +55,20 @@ class BarChart(Widget):
             filled = max(0, min(filled, self.bar_width))
             empty = self.bar_width - filled
 
-            out.append(label, style="bold")
+            pct_str = f"{pct:.0f}%"
+
+            out.append("  ", style="")
+            out.append(label, style=f"bold {color}")
             out.append("  ")
             out.append("█" * filled, style=color)
             out.append("░" * empty, style="grey23")
-            out.append(f"  {value:>10}\n", style="dim")
+            out.append(f"  {value:>8}", style="bold #f7f8f8")
+            out.append(f"  {pct_str:>5}\n", style="dim #62666d")
 
         return out
 
     def get_content_width(self, container, viewport) -> int:
-        return self.label_width + self.bar_width + 14
+        return self.label_width + self.bar_width + 20
 
     def get_content_height(self, container, viewport, width: int) -> int:
         return max(1, len(self.rows)) if self.rows else 1

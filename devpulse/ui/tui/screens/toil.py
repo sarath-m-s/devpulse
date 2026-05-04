@@ -1,4 +1,4 @@
-"""Toil screen — pattern detection with inline suggest action."""
+"""Toil screen — pattern detection with inline LLM suggest action."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from textual.binding import Binding
 from textual.widgets import Static
 
 from devpulse.ui.tui import data as tui_data
-from devpulse.ui.tui.widgets import StatCard, StatRow
+from devpulse.ui.tui.widgets import Panel, StatCard, StatRow
 from devpulse.ui.tui.vim_scroll import VimDataTable, VimVerticalScroll
 
 
@@ -16,17 +16,20 @@ class ToilScreen(VimVerticalScroll):
     """Toil detector view with Apply / Suggest action."""
 
     DEFAULT_CSS = """
-    ToilScreen { padding: 1 1; }
+    ToilScreen {
+        padding: 1 1;
+        background: #010102;
+    }
     ToilScreen VimDataTable {
         height: auto;
         max-height: 18;
-        margin: 0 0 1 0;
+        background: #0d0e11;
     }
     """
 
     BINDINGS = [
         Binding("enter", "apply_selected", "Suggest"),
-        Binding("a", "apply_selected", "Suggest", show=False),
+        Binding("a",     "apply_selected", "Suggest", show=False),
     ]
 
     def __init__(self, *args, **kwargs) -> None:
@@ -36,19 +39,23 @@ class ToilScreen(VimVerticalScroll):
     def compose(self) -> ComposeResult:
         yield Static("", id="toil-title")
         yield StatRow(
-            StatCard(label="Patterns found", value="-"),
+            StatCard(label="Patterns found",    value="-"),
             StatCard(label="Total repetitions", value="-"),
-            StatCard(label="Est. time wasted", value="-", accent=True),
+            StatCard(label="Est. time wasted",  value="-", accent=True),
             id="toil-stat-row",
         )
-        yield Static("DETECTED PATTERNS — press [a] for suggest (cursor: j/k, arrows)", classes="section-bar")
-        yield VimDataTable(id="toil-table", zebra_stripes=True, cursor_type="row")
-        yield Static("SUGGESTION OUTPUT", classes="section-bar")
-        yield Static("[dim]Select a pattern and press Enter to generate an alias/script via LLM[/dim]", id="toil-output", classes="muted")
+        with Panel("DETECTED PATTERNS — j/k to navigate, Enter/a to generate alias"):
+            yield VimDataTable(id="toil-table", zebra_stripes=True, cursor_type="row")
+        with Panel("LLM SUGGESTION"):
+            yield Static(
+                "[dim]Select a pattern and press Enter or [a] to generate an alias/script[/dim]",
+                id="toil-output",
+                classes="muted",
+            )
 
     async def on_mount(self) -> None:
         table = self.query_one(VimDataTable)
-        table.add_columns("ID", "Pattern", "Count", "Wasted")
+        table.add_columns("ID", "Pattern", "×Count", "~Wasted")
 
     async def refresh_data(self) -> None:
         try:
@@ -59,8 +66,9 @@ class ToilScreen(VimVerticalScroll):
 
         self._patterns = patterns
 
-        title = self.query_one("#toil-title", Static)
-        title.update("\n[bold]Toil Detector[/bold]  [dim]repeated command sequences[/dim]\n")
+        self.query_one("#toil-title", Static).update(
+            "\n[bold #f7f8f8]Toil Detector[/]  [dim]repeated command sequences[/dim]\n"
+        )
 
         total_reps = sum(p["count"] for p in patterns)
         total_wasted = sum(p["wasted_hours"] for p in patterns)
@@ -69,7 +77,7 @@ class ToilScreen(VimVerticalScroll):
         if len(cards) >= 3:
             cards[0].update_card(
                 value=str(len(patterns)),
-                value_color="#d97706" if patterns else "white",
+                value_color="#d97706" if patterns else "#f7f8f8",
                 delta="automated detection",
             )
             cards[1].update_card(value=str(total_reps), delta="all patterns")
@@ -86,8 +94,8 @@ class ToilScreen(VimVerticalScroll):
             return
         for p in patterns:
             label = p["label"]
-            if len(label) > 70:
-                label = label[:67] + "…"
+            if len(label) > 65:
+                label = label[:62] + "…"
             table.add_row(
                 str(p["id"]),
                 label,
@@ -107,8 +115,8 @@ class ToilScreen(VimVerticalScroll):
         pattern = self._patterns[cursor]
         pid = pattern["id"]
         self.query_one("#toil-output", Static).update(
-            f"[#5e6ad2]⏳[/#5e6ad2] Generating alias for pattern #{pid} via LLM…\n"
-            f"[dim]Pattern: {pattern['label'][:80]}[/dim]"
+            f"  [#5e6ad2]⏳[/#5e6ad2] Generating alias for pattern #{pid} via LLM…\n"
+            f"  [dim]Pattern: {pattern['label'][:80]}[/dim]"
         )
         self._run_suggest(pid)
 
@@ -126,6 +134,6 @@ class ToilScreen(VimVerticalScroll):
         if len(text) > 1500:
             text = text[:1500] + "\n…(truncated)"
         out.update(
-            f"[#27a644]✓[/#27a644] [bold]Suggestion for pattern #{pattern_id}[/bold]\n"
-            f"[#fbbf24]{text}[/#fbbf24]"
+            f"  [#27a644]✓ Generated[/#27a644]  [bold]Suggestion for pattern #{pattern_id}[/bold]\n\n"
+            f"  [#fbbf24]{text}[/#fbbf24]"
         )

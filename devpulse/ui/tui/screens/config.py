@@ -9,37 +9,63 @@ from textual.containers import Horizontal
 from textual.widgets import Button, Checkbox, Select, Static
 
 from devpulse.ui.tui import data as tui_data
-from devpulse.ui.tui.widgets import StatCard, StatRow
+from devpulse.ui.tui.widgets import Panel, StatCard, StatRow
 from devpulse.ui.tui.vim_scroll import VimVerticalScroll
 
 
-_PROVIDER_OPTIONS = [("ollama (local)", "ollama"), ("claude", "claude"), ("groq", "groq"), ("openai", "openai"), ("none", "none")]
+_PROVIDER_OPTIONS = [
+    ("ollama (local)", "ollama"),
+    ("claude",         "claude"),
+    ("groq",           "groq"),
+    ("openai",         "openai"),
+    ("none",           "none"),
+]
 
 
 class ConfigScreen(VimVerticalScroll):
     """Configuration view with toggles, save, daemon controls."""
 
     DEFAULT_CSS = """
-    ConfigScreen { padding: 1 1; }
+    ConfigScreen {
+        padding: 1 1;
+        background: #010102;
+    }
     ConfigScreen Checkbox {
-        background: $surface;
+        background: #0d0e11;
         margin: 0 0 0 1;
     }
     ConfigScreen Select {
-        background: $surface;
-        width: 30;
+        background: #0d0e11;
+        width: 32;
     }
     ConfigScreen Button {
+        background: #0d0e11;
+        border: round #23252a;
+        color: #8a8f98;
         margin: 0 1 0 0;
+        height: 3;
+    }
+    ConfigScreen Button.-primary {
+        background: #1b1c21;
+        border: round #5e6ad2;
+        color: #5e6ad2;
+    }
+    ConfigScreen Button.-error {
+        border: round #e87b5a;
+        color: #e87b5a;
+    }
+    ConfigScreen Button:hover {
+        border: round #5e6ad2;
+        color: #f7f8f8;
     }
     ConfigScreen .config-row {
         height: 3;
-        margin: 0 0 0 0;
         align: left middle;
     }
     ConfigScreen .config-row Static {
-        width: 38;
-        padding: 1 0 0 1;
+        width: 22;
+        padding: 1 0 0 2;
+        color: #8a8f98;
     }
     ConfigScreen .button-row {
         height: 3;
@@ -48,69 +74,63 @@ class ConfigScreen(VimVerticalScroll):
     """
 
     BINDINGS = [
-        Binding("s", "save", "Save"),
+        Binding("s", "save",           "Save"),
         Binding("R", "restart_daemon", "Restart"),
-        Binding("S", "stop_daemon", "Stop"),
+        Binding("S", "stop_daemon",    "Stop"),
     ]
 
     def compose(self) -> ComposeResult:
         yield Static("", id="cfg-title")
-
         yield StatRow(
-            StatCard(label="Daemon", value="-"),
-            StatCard(label="PID", value="-"),
-            StatCard(label="Events today", value="-"),
-            StatCard(label="DB size", value="-"),
+            StatCard(label="Daemon",      value="-"),
+            StatCard(label="PID",         value="-"),
+            StatCard(label="Events today",value="-"),
+            StatCard(label="DB size",     value="-"),
             id="cfg-stat-row",
         )
-
-        yield Static("LLM PROVIDER", classes="section-bar")
-        with Horizontal(classes="config-row"):
-            yield Static("Provider")
-            yield Select(
-                options=_PROVIDER_OPTIONS,
-                value="ollama",
-                id="cfg-llm-provider",
-                allow_blank=False,
-            )
-
-        yield Static("COLLECTION", classes="section-bar")
-        with Horizontal(classes="config-row"):
-            yield Static("Shell hook")
-            yield Checkbox(value=True, id="cfg-shell")
-        with Horizontal(classes="config-row"):
-            yield Static("Git watcher")
-            yield Checkbox(value=True, id="cfg-git")
-        with Horizontal(classes="config-row"):
-            yield Static("Window focus")
-            yield Checkbox(value=True, id="cfg-window")
-        with Horizontal(classes="config-row"):
-            yield Static("File watcher")
-            yield Checkbox(value=False, id="cfg-file")
-
-        yield Static("PRIVACY", classes="section-bar")
-        with Horizontal(classes="config-row"):
-            yield Static("Local-only mode")
-            yield Checkbox(value=True, id="cfg-local")
-
-        yield Static("ACTIONS — [s] save, [R] restart daemon, [S] stop daemon", classes="section-bar")
-        with Horizontal(classes="button-row"):
-            yield Button("Save changes", id="cfg-save", variant="primary")
-            yield Button("Restart daemon", id="cfg-restart")
-            yield Button("Stop daemon", id="cfg-stop", variant="error")
-
-        yield Static("", id="cfg-feedback", classes="muted")
+        with Panel("LLM PROVIDER"):
+            with Horizontal(classes="config-row"):
+                yield Static("Provider")
+                yield Select(
+                    options=_PROVIDER_OPTIONS,
+                    value="ollama",
+                    id="cfg-llm-provider",
+                    allow_blank=False,
+                )
+        with Panel("COLLECTION"):
+            with Horizontal(classes="config-row"):
+                yield Static("Shell hook")
+                yield Checkbox(value=True, id="cfg-shell")
+            with Horizontal(classes="config-row"):
+                yield Static("Git watcher")
+                yield Checkbox(value=True, id="cfg-git")
+            with Horizontal(classes="config-row"):
+                yield Static("Window focus")
+                yield Checkbox(value=True, id="cfg-window")
+            with Horizontal(classes="config-row"):
+                yield Static("File watcher")
+                yield Checkbox(value=False, id="cfg-file")
+        with Panel("PRIVACY"):
+            with Horizontal(classes="config-row"):
+                yield Static("Local-only mode")
+                yield Checkbox(value=True, id="cfg-local")
+        with Panel("DAEMON CONTROLS — [s] save  [R] restart  [S] stop"):
+            with Horizontal(classes="button-row"):
+                yield Button("Save changes",    id="cfg-save",    variant="primary")
+                yield Button("Restart daemon",  id="cfg-restart")
+                yield Button("Stop daemon",     id="cfg-stop",    variant="error")
+            yield Static("", id="cfg-feedback", classes="muted")
 
     async def refresh_data(self) -> None:
         try:
             cfg = tui_data.load_cfg()
-            st = tui_data.fetch_status()
+            st  = tui_data.fetch_status()
         except Exception as exc:
             self.query_one("#cfg-title", Static).update(f"[red]Error: {exc}[/red]")
             return
 
         self.query_one("#cfg-title", Static).update(
-            "\n[bold]Configuration[/bold]  [dim]~/.devpulse/config.toml[/dim]\n"
+            "\n[bold #f7f8f8]Configuration[/]  [dim]~/.devpulse/config.toml[/dim]\n"
         )
 
         cards = list(self.query(StatCard))
@@ -125,7 +145,7 @@ class ConfigScreen(VimVerticalScroll):
             cards[2].update_card(value=str(st.get("total_events", 0)))
             cards[3].update_card(value=st.get("db_size", "-"))
 
-        # Provider
+        # Provider select
         try:
             self.query_one("#cfg-llm-provider", Select).value = (
                 cfg.get("llm", {}).get("provider", "ollama") or "ollama"
@@ -133,13 +153,14 @@ class ConfigScreen(VimVerticalScroll):
         except Exception:
             pass
 
-        collectors = cfg.get("collectors", {})
+        # Config uses "collectors" key (not "collection")
+        collection = cfg.get("collectors", cfg.get("collection", {}))
         try:
-            self.query_one("#cfg-shell", Checkbox).value = collectors.get("shell", True) is not False
-            self.query_one("#cfg-git", Checkbox).value = collectors.get("git", True) is not False
-            self.query_one("#cfg-window", Checkbox).value = collectors.get("window", True) is not False
-            self.query_one("#cfg-file", Checkbox).value = collectors.get("file_watcher", False) is True
-            self.query_one("#cfg-local", Checkbox).value = (
+            self.query_one("#cfg-shell",  Checkbox).value = collection.get("shell", True) is not False
+            self.query_one("#cfg-git",    Checkbox).value = collection.get("git", True) is not False
+            self.query_one("#cfg-window", Checkbox).value = collection.get("window_tracker", collection.get("window", True)) is not False
+            self.query_one("#cfg-file",   Checkbox).value = collection.get("file_watcher", False) is True
+            self.query_one("#cfg-local",  Checkbox).value = (
                 cfg.get("general", {}).get("local_only", True) is not False
             )
         except Exception:
@@ -148,12 +169,12 @@ class ConfigScreen(VimVerticalScroll):
     def action_save(self) -> None:
         try:
             updates = {
-                "llm.provider": self.query_one("#cfg-llm-provider", Select).value,
-                "collectors.shell": self.query_one("#cfg-shell", Checkbox).value,
-                "collectors.git": self.query_one("#cfg-git", Checkbox).value,
-                "collectors.window": self.query_one("#cfg-window", Checkbox).value,
-                "collectors.file_watcher": self.query_one("#cfg-file", Checkbox).value,
-                "general.local_only": self.query_one("#cfg-local", Checkbox).value,
+                "llm.provider":             self.query_one("#cfg-llm-provider", Select).value,
+                "collectors.shell":         self.query_one("#cfg-shell",  Checkbox).value,
+                "collectors.git":           self.query_one("#cfg-git",    Checkbox).value,
+                "collectors.window_tracker": self.query_one("#cfg-window", Checkbox).value,
+                "collectors.file_watcher":  self.query_one("#cfg-file",   Checkbox).value,
+                "general.local_only":       self.query_one("#cfg-local",  Checkbox).value,
             }
             tui_data.save_cfg(updates)
             self._set_feedback("[#27a644]✓ Configuration saved[/#27a644]")
@@ -183,7 +204,10 @@ class ConfigScreen(VimVerticalScroll):
         self.call_later(self.refresh_data)
 
     def _set_feedback(self, text: str) -> None:
-        self.query_one("#cfg-feedback", Static).update(text)
+        try:
+            self.query_one("#cfg-feedback", Static).update(text)
+        except Exception:
+            pass
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id

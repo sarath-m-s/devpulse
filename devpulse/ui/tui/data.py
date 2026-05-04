@@ -620,7 +620,8 @@ def save_cfg(updates: dict[str, Any]) -> None:
     from devpulse.config import load_config, save_config, set_config_value
     cfg = load_config()
     for key, value in updates.items():
-        set_config_value(cfg, key, value)
+        # set_config_value expects a string; convert native types first
+        set_config_value(cfg, key, str(value))
     save_config(cfg)
 
 

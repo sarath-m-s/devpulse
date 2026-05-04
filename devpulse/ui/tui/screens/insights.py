@@ -1,4 +1,4 @@
-"""Insights screen — LLM insights list, Ask DevPulse input, quick queries."""
+"""Insights screen — LLM workflow insights, Ask DevPulse, quick queries."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from textual.containers import Horizontal
 from textual.widgets import Button, Input, Static
 
 from devpulse.ui.tui import data as tui_data
-from devpulse.ui.tui.widgets import StatCard, StatRow
+from devpulse.ui.tui.widgets import Panel, StatCard, StatRow
 from devpulse.ui.tui.vim_scroll import VimVerticalScroll
 
 
@@ -25,26 +25,40 @@ class InsightsScreen(VimVerticalScroll):
     """AI Insights view."""
 
     DEFAULT_CSS = """
-    InsightsScreen { padding: 1 1; }
+    InsightsScreen {
+        padding: 1 1;
+        background: #010102;
+    }
     InsightsScreen Input {
-        background: $surface;
-        border: round $border;
+        background: #0d0e11;
+        border: round #23252a;
         height: 3;
         margin: 0 0 1 0;
+    }
+    InsightsScreen Input:focus {
+        border: round #5e6ad2;
     }
     InsightsScreen .quick-row {
         height: auto;
         margin: 0 0 1 0;
     }
     InsightsScreen Button {
+        background: #0d0e11;
+        border: round #23252a;
+        color: #8a8f98;
         margin: 0 1 0 0;
         min-width: 6;
         height: 3;
     }
+    InsightsScreen Button:hover {
+        background: #1b1c21;
+        color: #f7f8f8;
+        border: round #5e6ad2;
+    }
     """
 
     BINDINGS = [
-        Binding("i", "focus_input", "Ask"),
+        Binding("i", "focus_input",    "Ask"),
         Binding("R", "rerun_insights", "Re-run"),
     ]
 
@@ -52,29 +66,28 @@ class InsightsScreen(VimVerticalScroll):
         yield Static("", id="ins-title")
         yield StatRow(
             StatCard(label="LLM Provider", value="-", accent=True),
-            StatCard(label="Model", value="-"),
-            StatCard(label="Status", value="-"),
-            StatCard(label="Data range", value="30d"),
+            StatCard(label="Model",        value="-"),
+            StatCard(label="Status",       value="-"),
+            StatCard(label="Data range",   value="30d"),
             id="ins-stat-row",
         )
-        yield Static("WORKFLOW INSIGHTS — press [R] to regenerate", classes="section-bar")
-        yield Static(
-            "[dim]Loading insights from LLM…[/dim]",
-            id="ins-list",
-            classes="muted",
-        )
-        yield Static("ASK DEVPULSE — natural language query", classes="section-bar")
-        yield Input(placeholder="e.g. What project should I focus on tomorrow?", id="ins-input")
-        yield Static("", id="ins-quick-label", classes="muted")
-        with Horizontal(classes="quick-row", id="ins-quick-buttons"):
-            for i, q in enumerate(_QUICK_QUERIES):
-                yield Button(label=q[:30] + "…" if len(q) > 30 else q, id=f"qq-{i}")
-        yield Static("RESPONSE", classes="section-bar")
-        yield Static(
-            "[dim]Type a question above and press Enter to ask the LLM[/dim]",
-            id="ins-response",
-            classes="muted",
-        )
+        with Panel("WORKFLOW INSIGHTS — [R] regenerate"):
+            yield Static("[dim]Loading insights from LLM…[/dim]", id="ins-list", classes="muted")
+        with Panel("ASK DEVPULSE"):
+            yield Input(
+                placeholder="e.g. What project should I focus on tomorrow?",
+                id="ins-input",
+            )
+            with Horizontal(classes="quick-row", id="ins-quick-buttons"):
+                for i, q in enumerate(_QUICK_QUERIES):
+                    label = (q[:28] + "…") if len(q) > 30 else q
+                    yield Button(label=label, id=f"qq-{i}")
+        with Panel("RESPONSE"):
+            yield Static(
+                "[dim]Type a question above and press Enter to ask the LLM[/dim]",
+                id="ins-response",
+                classes="muted",
+            )
 
     async def refresh_data(self) -> None:
         try:
@@ -83,13 +96,15 @@ class InsightsScreen(VimVerticalScroll):
             self.query_one("#ins-title", Static).update(f"[red]Error: {exc}[/red]")
             return
 
-        title = self.query_one("#ins-title", Static)
-        title.update("\n[bold]AI Insights[/bold]  [dim]natural language analysis[/dim]\n")
+        self.query_one("#ins-title", Static).update(
+            "\n[bold #f7f8f8]AI Insights[/]  [dim]natural language analysis[/dim]\n"
+        )
 
-        cards = list(self.query(StatCard))
         provider_name = provider.name
         model_name = cfg.get("llm", {}).get("model", "auto")
         available = provider.is_available()
+
+        cards = list(self.query(StatCard))
         if len(cards) >= 4:
             cards[0].update_card(
                 value=provider_name,
@@ -133,18 +148,16 @@ class InsightsScreen(VimVerticalScroll):
         if not text:
             list_widget.update("[dim]No insights returned[/dim]")
             return
-        # Format as bullet list with bullets / coloured markers
-        lines = [l.strip() for l in text.split("\n") if l.strip()]
+        lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
         markers = ["#27a644", "#d97706", "#5e6ad2"]
         out = []
         for i, line in enumerate(lines):
             color = markers[i % len(markers)]
-            cleaned = line.lstrip("0123456789.- *)")
-            cleaned = cleaned.strip()
-            out.append(f" [{color}]●[/{color}] {cleaned}")
+            cleaned = line.lstrip("0123456789.- *)").strip()
+            out.append(f"  [{color}]●[/{color}] {cleaned}")
         list_widget.update("\n".join(out))
 
-    # ── Ask handling ────────────────────────────────────────────────
+    # ── Input / button handling ──────────────────────────────────────
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "ins-input":
@@ -166,7 +179,9 @@ class InsightsScreen(VimVerticalScroll):
 
     def _trigger_ask(self, question: str) -> None:
         resp = self.query_one("#ins-response", Static)
-        resp.update(f"[#5e6ad2]⏳[/#5e6ad2] [dim]{question}[/dim]\n[dim]thinking…[/dim]")
+        resp.update(
+            f"  [#5e6ad2]⏳[/#5e6ad2] [dim]{question}[/dim]\n  [dim]thinking…[/dim]"
+        )
         self._ask_llm(question)
 
     @work(thread=True, exclusive=True)
@@ -177,6 +192,6 @@ class InsightsScreen(VimVerticalScroll):
     def _set_answer(self, question: str, answer: str) -> None:
         resp = self.query_one("#ins-response", Static)
         resp.update(
-            f"[#5e6ad2]Q[/#5e6ad2] [dim]{question}[/dim]\n\n"
-            f"[#27a644]A[/#27a644] {answer}"
+            f"  [#5e6ad2]Q[/#5e6ad2] [dim]{question}[/dim]\n\n"
+            f"  [#27a644]A[/#27a644] {answer}"
         )

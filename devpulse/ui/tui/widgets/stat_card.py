@@ -8,30 +8,34 @@ from textual.widgets import Static
 
 
 class StatCard(Vertical):
-    """A single stat card. Use update(label, value, delta, delta_class)."""
+    """A single stat card. Use update_card(label, value, delta, delta_class)."""
 
     DEFAULT_CSS = """
     StatCard {
-        background: $surface;
-        border: round $border;
+        background: #0d0e11;
+        border: round #23252a;
         padding: 0 1;
-        height: 5;
+        height: 7;
         width: 1fr;
     }
+    StatCard.accent {
+        border-top: heavy #5e6ad2;
+    }
     StatCard > .stat-label {
-        color: $text-muted;
+        color: #8a8f98;
         text-style: bold;
+        margin-top: 1;
     }
     StatCard > .stat-value {
-        color: $text;
+        color: #f7f8f8;
         text-style: bold;
     }
     StatCard > .stat-delta {
-        color: $text-disabled;
+        color: #62666d;
     }
-    StatCard > .stat-delta.up    { color: $success; }
-    StatCard > .stat-delta.down  { color: $error; }
-    StatCard > .stat-delta.warn  { color: $warning; }
+    StatCard > .stat-delta.up   { color: #27a644; }
+    StatCard > .stat-delta.down { color: #e87b5a; }
+    StatCard > .stat-delta.warn { color: #d97706; }
     """
 
     def __init__(
@@ -71,19 +75,22 @@ class StatCard(Vertical):
         delta_class: str | None = None,
         value_color: str | None = None,
     ) -> None:
-        children = list(self.query(Static))
-        if not children:
-            return
-        if label is not None and len(children) > 0:
-            children[0].update(label)
-        if value is not None and len(children) > 1:
-            children[1].update(value)
-            if value_color:
-                children[1].styles.color = value_color
-        if delta is not None and len(children) > 2:
-            children[2].update(delta)
-        if delta_class is not None and len(children) > 2:
-            children[2].set_classes(f"stat-delta {delta_class}".strip())
+        try:
+            children = list(self.query(Static))
+            if not children:
+                return
+            if label is not None and len(children) > 0:
+                children[0].update(label)
+            if value is not None and len(children) > 1:
+                children[1].update(value)
+                if value_color:
+                    children[1].styles.color = value_color
+            if delta is not None and len(children) > 2:
+                children[2].update(delta)
+            if delta_class is not None and len(children) > 2:
+                children[2].set_classes(f"stat-delta {delta_class}".strip())
+        except Exception:
+            pass
 
 
 class StatRow(Horizontal):
@@ -91,8 +98,9 @@ class StatRow(Horizontal):
 
     DEFAULT_CSS = """
     StatRow {
-        height: 5;
+        height: 7;
         width: 100%;
+        margin: 0 0 1 0;
     }
     StatRow > StatCard {
         margin: 0 1 0 0;
